@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Bash(find /c/Users/ozaga/workspace/HCCLT-GCP -type f -not -path ./.git/*)",
+      "Bash(git -C hcclt-platform pull origin develop)",
+      "Bash(where psql:*)",
+      "Bash(npx tsc:*)",
+      "Bash(gsutil du:*)",
+      "Bash(gsutil.cmd du:*)",
+      "Bash(grep -n \"^  [a-z].*:\\\\s*{$\\\\|^  },$\\\\|content:\\\\|site:\\\\|getBulletin\\\\|listBulletins\" apps/web/src/lib/api-client.ts)",
+      "Bash(npx turbo *)",
+      "Read(//c/Users/ozaga/**)",
+      "Read(//c/Program Files/PostgreSQL/17/bin/**)",
+      "Read(//c/Program Files/PostgreSQL/**)",
+      "Bash(/c/Users/ozaga/cloud-sql-proxy.exe hcclt-nonprod:us-east1:hcclt-db-dev --port=5433)",
+      "Bash(cmd.exe /c \"docker-start.bat\")",
+      "Bash(curl -s -o /dev/null -w \"API health: %{http_code}\\\\n\" http://localhost:3001/api/v1/health)",
+      "Bash(curl -s -o /dev/null -w \"API nav:    %{http_code}\\\\n\" http://localhost:3001/api/v1/event-pages/nav)",
+      "Bash(curl -s -o /dev/null -w \"Web :3000:  %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(curl -sf http://localhost:3000 -o /dev/null)",
+      "Bash(curl -sf http://localhost:3001/api/v1/health -o /dev/null)",
+      "Bash(curl -s -o /dev/null -w \"Web :3000: %{http_code}\\\\nAPI:       %{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 17500 /PID 20964\")",
+      "Bash(taskkill.exe //F //PID 17500 //PID 20964)",
+      "Bash(curl -s http://localhost:3001/api/v1/event-pages/nav)",
+      "Bash(cmd.exe /c docker-start.bat)",
+      "Bash(cmd.exe //c \"cd /d c:\\\\Users\\\\ozaga\\\\workspace\\\\HCCLT-GCP && docker-start.bat\")",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s http://localhost:3001/api/v1/health)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('main',''\\), d.get\\('exports',''\\), d.get\\('types',''\\)\\)\")",
+      "Bash(xargs grep *)",
+      "Bash(node *)"
+    ]
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "_readme": "This is a reference template — NOT loaded by Claude Code. Copy relevant sections into settings.json (team) or settings.local.json (personal). Delete keys you don't need.",
+
+  // ─── PERMISSIONS ────────────────────────────────────────────────────────────
+  // Controls which tool calls run without a confirmation prompt.
+  // Rule syntax:
+  //   "ToolName"            → allow ALL calls to that tool
+  //   "Bash(git *)"         → allow any Bash command starting with "git"
+  //   "Bash(npm run test)"  → allow only this exact command
+  //   "Edit(.claude)"       → allow edits only inside .claude/
+  //   "WebFetch(domain:github.com)" → allow fetches to github.com only
+  "permissions": {
+    "allow": [
+      // VCS — safe read/write ops
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+
+      // GitHub CLI
+      "Bash(gh issue *)",
+      "Bash(gh pr *)",
+      "Bash(gh auth:*)",
+
+      // Node / npm
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(npx jest *)",
+
+      // Docker (for /build skill Step 10)
+      "Bash(docker compose *)",
+      "PowerShell",
+
+      // File tools — allow all (reads + edits are low-risk)
+      "Read",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
+
+    "deny": [
+      // Hard blocks — these NEVER run even if allow rules match
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(DROP *)",
+      "Bash(kubectl delete *)"
+    ],
+
+    "ask": [
+      // Always prompt for confirmation, even if an allow rule would match
+      "Bash(git push *)",
+      "Bash(gcloud *)",
+      "Write(/etc/*)"
+    ],
+
+    // Default mode when no rule matches:
+    //   "default"         → prompt (safest)
+    //   "acceptEdits"     → auto-allow file edits, prompt for Bash
+    //   "auto"            → Claude decides what's safe
+    //   "bypassPermissions" → allow everything (dangerous — CI only)
+    "defaultMode": "default",
+
+    // Extra directories Claude is allowed to read/write outside the repo root
+    "additionalDirectories": [
+      "C:/Users/ozaga/.claude"
+    ]
+  },
+
+  // ─── HOOKS ──────────────────────────────────────────────────────────────────
+  // Commands that fire automatically at lifecycle events.
+  // Hook receives JSON on stdin describing the event.
+  // Events: PreToolUse, PostToolUse, Stop, SessionStart, PreCompact, etc.
+  "hooks": {
+    // Run BEFORE a tool executes — can block the call
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            // Log every Bash command Claude runs
+            "command": "jq -r '.tool_input.command' >> ~/.claude/bash-audit.log 2>/dev/null || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+
+    // Run AFTER a tool executes successfully
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            // Auto-format TypeScript/JS files after Claude writes them
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; echo \"$f\" | grep -qE '\\.(ts|tsx|js|jsx)$' && npx prettier --write \"$f\"; } 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Formatting..."
+          }
+        ]
+      }
+    ],
+
+    // Run when Claude finishes a turn (before waiting for next user message)
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            // Desktop notification when Claude is done (macOS: osascript / Windows: msg)
+            "command": "echo '{\"systemMessage\": \"Claude finished.\"}'"
+          }
+        ]
+      }
+    ],
+
+    // Run once at the start of each session
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"Session started at $(date)\" >> ~/.claude/session.log 2>/dev/null || true",
+            "async": true
+          }
+        ]
+      }
+    ]
+  },
+
+  // ─── ENVIRONMENT VARIABLES ───────────────────────────────────────────────────
+  // Injected into every Claude Code session (and into hook commands).
+  // Do NOT put secrets here — use GCP Secret Manager or OS keychain.
+  "env": {
+    "NODE_ENV": "development",
+    "DEBUG": "false",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+
+  // ─── MODEL ──────────────────────────────────────────────────────────────────
+  // Override the model for this project.
+  // Options: "sonnet", "opus", "haiku", or a full model ID.
+  "model": "claude-sonnet-4-6",
+
+  // ─── MCP SERVERS ────────────────────────────────────────────────────────────
+  // Auto-approve all MCP servers declared in .mcp.json for this project.
+  "enableAllProjectMcpServers": true,
+
+  // Or approve/block specific servers by name:
+  "enabledMcpjsonServers": ["google-calendar", "google-drive"],
+  "disabledMcpjsonServers": ["untrusted-server"],
+
+  // ─── WORKTREE ───────────────────────────────────────────────────────────────
+  // Config for Claude Code's --worktree / isolated branch mode.
+  "worktree": {
+    // Directories to symlink from main repo into worktrees (avoids re-installing deps)
+    "symlinkDirectories": ["node_modules", ".cache"],
+
+    // Branch new worktrees from origin/main (clean) vs local HEAD (includes unpushed commits)
+    "baseRef": "fresh"
+  },
+
+  // ─── AUTO-COMPACT ───────────────────────────────────────────────────────────
+  // Automatically compact the conversation when context window fills up.
+  "autoCompactEnabled": true,
+
+  // ─── UI / DISPLAY ───────────────────────────────────────────────────────────
+  "theme": "dark",              // "auto" | "dark" | "light"
+  "verbose": false,             // Show full tool output (not truncated)
+  "syntaxHighlightingDisabled": false,
+  "showTurnDuration": true,     // Show how long each turn took
+  "showMessageTimestamps": true
+}
