@@ -5,6 +5,12 @@ import type {
   ModelInfo,
   FitResult,
   PredictResponse,
+  ExcelUploadResult,
+  SheetRawResult,
+  ImportResult,
+  ImportTemplate,
+  PendingSample,
+  ColumnMap,
 } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -100,5 +106,60 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fit_ids }),
       }),
+  },
+
+  excel: {
+    upload: (file: File): Promise<ExcelUploadResult> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return req<ExcelUploadResult>("/api/excel/upload", {
+        method: "POST",
+        body: fd,
+      });
+    },
+    sheetRaw: (token: string, sheet_name: string): Promise<SheetRawResult> =>
+      req<SheetRawResult>(`/api/excel/${token}/sheet-raw`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sheet_name }),
+      }),
+    import: (
+      token: string,
+      project_id: string,
+      samples: PendingSample[],
+    ): Promise<ImportResult> =>
+      req<ImportResult>(`/api/excel/${token}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id,
+          samples: samples.map((s) => ({
+            sheet_name: s.sheetName,
+            sample_name: s.sampleName,
+            header_row_index: s.headerRowIndex,
+            data_row_indices: s.dataRowIndices,
+            column_map: s.columnMap,
+            group_column: s.groupColumn,
+          })),
+        }),
+      }),
+    deleteSession: (token: string) =>
+      req(`/api/excel/${token}`, { method: "DELETE" }),
+  },
+
+  templates: {
+    list: (): Promise<ImportTemplate[]> =>
+      req<ImportTemplate[]>("/api/templates"),
+    create: (
+      name: string,
+      column_map: ColumnMap,
+      group_column?: string,
+    ): Promise<ImportTemplate> =>
+      req<ImportTemplate>("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, column_map, group_column }),
+      }),
+    delete: (id: string) => req(`/api/templates/${id}`, { method: "DELETE" }),
   },
 };

@@ -4,6 +4,7 @@ from .db.database import create_tables
 from .routers.projects import router as projects_router
 from .routers.samples import router as samples_router, obs_router
 from .routers.fitting import router as fitting_router
+from .routers.excel import router as excel_router
 
 app = FastAPI(title="Disinfection Benchmark Workbench API", version="1.0.0")
 
@@ -25,6 +26,7 @@ app.include_router(projects_router)
 app.include_router(samples_router)
 app.include_router(obs_router)
 app.include_router(fitting_router)
+app.include_router(excel_router)
 
 
 @app.get("/api/health")

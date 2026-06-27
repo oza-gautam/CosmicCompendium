@@ -117,3 +117,64 @@ export interface PredictResponse {
   y: number[];
   y_log: number[];
 }
+
+// Excel Import Wizard types
+
+export interface ExcelSheet {
+  name: string;
+  row_count: number;
+}
+
+export interface ExcelUploadResult {
+  token: string;
+  sheets: ExcelSheet[];
+}
+
+export interface SheetRawResult {
+  rows: string[][];
+  row_count: number;
+  truncated?: boolean;
+  total_rows?: number;
+}
+
+export interface ColumnMap {
+  time?: string;
+  concentration?: string;
+  cfu?: string;
+  ict?: string;
+  replicate?: string;
+  dose?: string;
+}
+
+export interface PendingSample {
+  sheetName: string;
+  sampleName: string;
+  headerRowIndex: number;
+  dataRowIndices: number[];
+  columnMap: ColumnMap;
+  groupColumn?: string;
+}
+
+export interface ImportedSample {
+  sample_id: string;
+  name: string;
+  obs_count: number;
+}
+
+export interface ImportError {
+  sample_name: string;
+  reason: string;
+}
+
+export interface ImportResult {
+  imported: ImportedSample[];
+  errors: ImportError[];
+}
+
+export interface ImportTemplate {
+  id: string;
+  name: string;
+  column_map: ColumnMap;
+  group_column?: string;
+  created_at: string;
+}

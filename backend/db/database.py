@@ -57,6 +57,14 @@ def create_tables():
             quality_score TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS import_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            column_map TEXT NOT NULL,
+            group_column TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
     conn.close()

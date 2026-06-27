@@ -5,7 +5,15 @@ import { use } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Project, Sample } from "@/types";
-import { FlaskConical, ChevronRight, Upload, Beaker, Home } from "lucide-react";
+import {
+  FlaskConical,
+  ChevronRight,
+  Upload,
+  Beaker,
+  Home,
+  FileSpreadsheet,
+} from "lucide-react";
+import ExcelImportModal from "@/components/ExcelImportModal";
 
 export default function ProjectPage({
   params,
@@ -22,6 +30,7 @@ export default function ProjectPage({
     currentName: string;
   } | null>(null);
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const [showExcelModal, setShowExcelModal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,6 +71,11 @@ export default function ProjectPage({
     setUploadProgress(null);
     if (errors.length > 0) setUploadErrors(errors);
     if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function refreshSamples() {
+    const samps = await api.samples.list(id);
+    setSamples(samps);
   }
 
   if (loading) {
@@ -115,30 +129,43 @@ export default function ProjectPage({
             </p>
           </div>
 
-          <label
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uploading ? "bg-slate-700 text-slate-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
-          >
-            {uploading ? (
-              <span>
-                Uploading {uploadProgress.done + 1}/{uploadProgress.total} —{" "}
-                {uploadProgress.currentName}
-              </span>
-            ) : (
-              <>
-                <Upload size={15} />
-                Upload CSVs
-              </>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv"
-              multiple
-              className="hidden"
-              onChange={handleUpload}
+          <div className="flex items-center gap-2">
+            {/* Import from Excel */}
+            <button
+              onClick={() => setShowExcelModal(true)}
               disabled={uploading}
-            />
-          </label>
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-slate-600 hover:border-emerald-500 text-slate-300 hover:text-emerald-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <FileSpreadsheet size={15} />
+              Import from Excel
+            </button>
+
+            {/* Upload CSVs */}
+            <label
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${uploading ? "bg-slate-700 text-slate-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
+            >
+              {uploading ? (
+                <span>
+                  Uploading {uploadProgress.done + 1}/{uploadProgress.total} —{" "}
+                  {uploadProgress.currentName}
+                </span>
+              ) : (
+                <>
+                  <Upload size={15} />
+                  Upload CSVs
+                </>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                multiple
+                className="hidden"
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+            </label>
+          </div>
         </div>
 
         {/* Upload progress bar */}
@@ -182,7 +209,8 @@ export default function ProjectPage({
             <Beaker size={40} className="mx-auto mb-4 opacity-30" />
             <p className="text-lg font-medium">No samples yet</p>
             <p className="text-sm mt-1">
-              Upload one or more CSV files to add benchmark datasets
+              Upload CSV files or import from an Excel workbook to add benchmark
+              datasets
             </p>
           </div>
         ) : (
@@ -220,6 +248,14 @@ export default function ProjectPage({
           </div>
         )}
       </main>
+
+      {showExcelModal && (
+        <ExcelImportModal
+          projectId={id}
+          onClose={() => setShowExcelModal(false)}
+          onImportComplete={refreshSamples}
+        />
+      )}
     </div>
   );
 }
