@@ -105,6 +105,8 @@ class SampleImportConfig(BaseModel):
     data_row_indices: list[int]
     column_map: dict[str, str]
     group_column: Optional[str] = None
+    selected_columns: Optional[list[int]] = None  # column indices to keep; None = all
+    row_overrides: Optional[dict[str, dict[str, str]]] = None
 
 
 class ImportRequest(BaseModel):
@@ -133,12 +135,13 @@ def _insert_sample(conn, project_id: str, name: str, column_map: dict, rows: lis
         return None
 
     times, concs, cfus, icts_raw, repls, doses = [], [], [], [], [], []
-    for row in rows:
+    bad_rows = []
+    for row_num, row in enumerate(rows):
         t = get_col(row, time_col)
         c = get_col(row, conc_col)
         f = get_col(row, cfu_col)
         if t is None or c is None or f is None:
-            continue
+            continue  # blank/missing values are still silently skipped (expected)
         try:
             times.append(float(t))
             concs.append(float(c))
@@ -146,8 +149,11 @@ def _insert_sample(conn, project_id: str, name: str, column_map: dict, rows: lis
             icts_raw.append(float(get_col(row, ict_col)) if ict_col and get_col(row, ict_col) is not None else None)
             repls.append(get_col(row, repl_col))
             doses.append(float(get_col(row, dose_col)) if dose_col and get_col(row, dose_col) is not None else None)
-        except (ValueError, TypeError):
-            continue
+        except (ValueError, TypeError) as exc:
+            bad_rows.append(f"row {row_num+1}: {exc} (values: t={t}, c={c}, cfu={f})")
+
+    if bad_rows:
+        raise ValueError(f"Non-numeric values in {len(bad_rows)} row(s): {'; '.join(bad_rows[:5])}")
 
     if not times:
         raise ValueError("No valid numeric rows found with the given column mapping.")
@@ -169,6 +175,13 @@ def _insert_sample(conn, project_id: str, name: str, column_map: dict, rows: lis
             (sample_id, t, c, f, ict, repl, dose, i),
         )
     obs_count = len(times)
+    conn.execute(
+        "INSERT INTO fit_events (id, sample_id, event_type, title, body, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+        (str(uuid.uuid4()), sample_id, "sample_created",
+         f"Sample imported: {name}",
+         f"Sample '{name}' imported from Excel with {obs_count} observations.",
+         json.dumps({"obs_count": obs_count, "source": "excel"}))
+    )
     return {"sample_id": sample_id, "name": name, "obs_count": obs_count}
 
 
@@ -214,9 +227,30 @@ def import_excel(token: str, body: ImportRequest):
             errors.append({"sample_name": cfg.sample_name, "reason": f"Header row index {cfg.header_row_index} out of range."})
             continue
 
-        headers = all_rows[cfg.header_row_index]
+        raw_headers = all_rows[cfg.header_row_index]
         valid_data_indices = [i for i in cfg.data_row_indices if 0 <= i <= max_idx and i != cfg.header_row_index]
-        data_rows = [all_rows[i] for i in valid_data_indices]
+        raw_data_rows = [list(all_rows[i]) for i in valid_data_indices]
+
+        # Apply row overrides
+        valid_data_indices_set = set(valid_data_indices)
+        if cfg.row_overrides:
+            for abs_idx_str, col_overrides in cfg.row_overrides.items():
+                abs_idx = int(abs_idx_str)
+                if abs_idx in valid_data_indices_set:
+                    row_pos = valid_data_indices.index(abs_idx)
+                    for col_idx_str, val in col_overrides.items():
+                        col_idx = int(col_idx_str)
+                        if col_idx < len(raw_data_rows[row_pos]):
+                            raw_data_rows[row_pos][col_idx] = val
+
+        # Apply column filter if specified
+        if cfg.selected_columns:
+            col_idx = cfg.selected_columns
+            headers = [raw_headers[ci] if ci < len(raw_headers) else "" for ci in col_idx]
+            data_rows = [[row[ci] if ci < len(row) else "" for ci in col_idx] for row in raw_data_rows]
+        else:
+            headers = raw_headers
+            data_rows = raw_data_rows
 
         if not data_rows:
             errors.append({"sample_name": cfg.sample_name, "reason": "No data rows selected."})

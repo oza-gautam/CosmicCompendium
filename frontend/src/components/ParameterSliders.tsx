@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { ModelInfo } from "@/types";
 
 interface Props {
@@ -32,6 +33,14 @@ function useLogScale(min: number, max: number): boolean {
 }
 
 export default function ParameterSliders({ model, values, onChange }: Props) {
+  const [drafts, setDrafts] = useState<(string | null)[]>(() =>
+    values.map(() => null),
+  );
+
+  useEffect(() => {
+    setDrafts(values.map(() => null));
+  }, [values]);
+
   function update(i: number, v: number) {
     const next = [...values];
     next[i] = v;
@@ -47,33 +56,58 @@ export default function ParameterSliders({ model, values, onChange }: Props) {
           ? logSlider(param.min, param.max, val)
           : (val - param.min) / (param.max - param.min);
 
+        const displayValue = drafts[i] ?? val.toPrecision(6);
+
         return (
           <div key={param.name}>
             <div className="flex items-center justify-between mb-1.5">
               <div>
-                <span className="text-sm font-mono font-semibold text-blue-300">
+                <span className="text-sm font-mono font-semibold text-accent">
                   {param.name}
                 </span>
-                <span className="text-xs text-slate-500 ml-2">
+                <span className="text-xs text-secondary ml-2">
                   {param.description}
                 </span>
               </div>
               <input
                 type="number"
-                value={val.toPrecision(4)}
-                min={param.min}
-                max={param.max}
-                step={(param.max - param.min) / 1000}
+                value={displayValue}
                 onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!isNaN(v))
-                    update(i, Math.max(param.min, Math.min(param.max, v)));
+                  const draft = e.target.value;
+                  setDrafts((prev) => {
+                    const n = [...prev];
+                    n[i] = draft;
+                    return n;
+                  });
                 }}
-                className="w-24 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 text-right focus:outline-none focus:border-blue-500 font-mono"
+                onBlur={() => {
+                  const draft = drafts[i];
+                  if (draft !== null) {
+                    const parsed = parseFloat(draft);
+                    if (!isNaN(parsed)) {
+                      const clamped = Math.max(
+                        param.min,
+                        Math.min(param.max, parsed),
+                      );
+                      update(i, clamped);
+                    }
+                    setDrafts((prev) => {
+                      const n = [...prev];
+                      n[i] = null;
+                      return n;
+                    });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="w-24 bg-surface border border-border rounded px-2 py-1 text-xs text-primary text-right focus:outline-none focus:border-accent font-mono"
               />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-600 w-14 text-right font-mono">
+              <span className="text-xs text-muted w-14 text-right font-mono">
                 {param.min < 0.01 ? param.min.toExponential(1) : param.min}
               </span>
               <input
@@ -91,7 +125,7 @@ export default function ParameterSliders({ model, values, onChange }: Props) {
                 }}
                 className="flex-1 accent-blue-500 h-1.5 cursor-pointer"
               />
-              <span className="text-xs text-slate-600 w-14 font-mono">
+              <span className="text-xs text-muted w-14 font-mono">
                 {param.max > 100 ? param.max.toExponential(1) : param.max}
               </span>
             </div>

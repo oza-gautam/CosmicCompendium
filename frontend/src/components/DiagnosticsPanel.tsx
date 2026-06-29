@@ -10,32 +10,47 @@ interface Props {
   fit: FitResult;
 }
 
-const DARK = {
-  paper: "transparent",
-  plot: "#111827",
-  grid: "#1f2937",
-  line: "#374151",
-  tick: "#64748b",
-  font: "#94a3b8",
-};
+function getThemeColors() {
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.getAttribute("data-theme") === "dark";
+  return isDark
+    ? {
+        paper: "transparent",
+        plot: "#111827",
+        grid: "#1f2937",
+        line: "#374151",
+        tick: "#64748b",
+        font: "#94a3b8",
+      }
+    : {
+        paper: "transparent",
+        plot: "#f8fafc",
+        grid: "#e2e8f0",
+        line: "#e2e8f0",
+        tick: "#94a3b8",
+        font: "#0f172a",
+      };
+}
 
 function layout(xtitle: string, ytitle: string): Partial<Plotly.Layout> {
+  const C = getThemeColors();
   return {
-    paper_bgcolor: DARK.paper,
-    plot_bgcolor: DARK.plot,
-    font: { color: DARK.font, size: 11 },
+    paper_bgcolor: C.paper,
+    plot_bgcolor: C.plot,
+    font: { color: C.font, size: 11 },
     xaxis: {
       title: { text: xtitle },
-      gridcolor: DARK.grid,
-      linecolor: DARK.line,
-      tickfont: { color: DARK.tick },
+      gridcolor: C.grid,
+      linecolor: C.line,
+      tickfont: { color: C.tick },
       zeroline: false,
     },
     yaxis: {
       title: { text: ytitle },
-      gridcolor: DARK.grid,
-      linecolor: DARK.line,
-      tickfont: { color: DARK.tick },
+      gridcolor: C.grid,
+      linecolor: C.line,
+      tickfont: { color: C.tick },
       zeroline: false,
     },
     margin: { t: 16, r: 16, b: 48, l: 56 },
@@ -53,7 +68,7 @@ export default function DiagnosticsPanel({ fit }: Props) {
 
   return (
     <div>
-      <div className="flex gap-1 mb-3 bg-slate-900/60 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-3 bg-surface rounded-lg p-1 w-fit">
         {(["residuals", "qq", "histogram", "cooks"] as const).map((t) => (
           <button
             key={t}
@@ -61,7 +76,7 @@ export default function DiagnosticsPanel({ fit }: Props) {
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               tab === t
                 ? "bg-blue-600 text-white"
-                : "text-slate-400 hover:text-slate-200"
+                : "text-secondary hover:text-primary"
             }`}
           >
             {t === "residuals"

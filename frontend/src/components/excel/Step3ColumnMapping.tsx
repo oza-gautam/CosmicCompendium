@@ -236,7 +236,13 @@ export default function Step3ColumnMapping({
     const raw = sheetRawCache[sample.sheetName];
     if (!raw) return [];
     const headerRow = raw.rows[sample.headerRowIndex];
-    return headerRow ? headerRow.filter(Boolean) : [];
+    if (!headerRow) return [];
+    if (sample.selectedColumns && sample.selectedColumns.length > 0) {
+      return sample.selectedColumns
+        .map((ci) => headerRow[ci])
+        .filter(Boolean) as string[];
+    }
+    return headerRow.filter(Boolean);
   }
 
   const allValid = samples.every(
@@ -244,13 +250,13 @@ export default function Step3ColumnMapping({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col flex-1 min-h-0 gap-4">
       <p className="text-sm text-slate-400">
         Map Excel columns to app fields for each sample. Required fields are
         marked with <span className="text-red-400">*</span>.
       </p>
 
-      <div className="space-y-4 max-h-[440px] overflow-y-auto pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
         {samples.map((sample, idx) => (
           <MappingCard
             key={idx}

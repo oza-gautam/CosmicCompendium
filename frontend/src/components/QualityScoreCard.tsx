@@ -36,12 +36,12 @@ function CategoryBar({
   return (
     <div className="mb-2">
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-slate-400">{label}</span>
-        <span className="font-mono text-slate-300">
+        <span className="text-secondary">{label}</span>
+        <span className="font-mono text-primary">
           {score.toFixed(0)}/{max}
         </span>
       </div>
-      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
         <div
           className={`h-full ${color} rounded-full transition-all`}
           style={{ width: `${pct}%` }}
@@ -56,24 +56,24 @@ export default function QualityScoreCard({ qs }: Props) {
     <div className="space-y-4">
       {/* Score gauge */}
       <div
-        className={`rounded-xl border p-4 text-center ${ratingBg[qs.rating] ?? "bg-slate-800/60 border-slate-700"}`}
+        className={`rounded-xl border p-4 text-center ${ratingBg[qs.rating] ?? "bg-surface border-border"}`}
       >
         <div
-          className={`text-5xl font-bold tabular-nums ${ratingColor[qs.rating] ?? "text-slate-200"}`}
+          className={`text-5xl font-bold tabular-nums ${ratingColor[qs.rating] ?? "text-primary"}`}
         >
           {qs.score.toFixed(0)}
         </div>
         <div
-          className={`text-sm font-semibold mt-1 ${ratingColor[qs.rating] ?? "text-slate-400"}`}
+          className={`text-sm font-semibold mt-1 ${ratingColor[qs.rating] ?? "text-secondary"}`}
         >
           {qs.rating}
         </div>
-        <div className="text-xs text-slate-500 mt-0.5">out of 100</div>
+        <div className="text-xs text-muted mt-0.5">out of 100</div>
       </div>
 
       {/* Category breakdown */}
-      <div className="bg-slate-900/60 rounded-lg p-3">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+      <div className="bg-surface rounded-lg p-3">
+        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">
           Category Breakdown
         </p>
         <CategoryBar label="Data Quality" score={qs.data_quality} max={20} />
@@ -96,8 +96,8 @@ export default function QualityScoreCard({ qs }: Props) {
 
       {/* Strengths */}
       {qs.strengths.length > 0 && (
-        <div className="bg-slate-900/60 rounded-lg p-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="bg-surface rounded-lg p-3">
+          <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
             Strengths
           </p>
           <ul className="space-y-1">
@@ -116,8 +116,8 @@ export default function QualityScoreCard({ qs }: Props) {
 
       {/* Weaknesses */}
       {qs.weaknesses.length > 0 && (
-        <div className="bg-slate-900/60 rounded-lg p-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="bg-surface rounded-lg p-3">
+          <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
             Weaknesses
           </p>
           <ul className="space-y-1">
@@ -136,19 +136,18 @@ export default function QualityScoreCard({ qs }: Props) {
 
       {/* Deductions */}
       {qs.deductions.length > 0 && (
-        <div className="bg-slate-900/60 rounded-lg p-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="bg-surface rounded-lg p-3">
+          <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
             Deductions
           </p>
           <ul className="space-y-1.5">
             {qs.deductions.map((d, i) => (
-              <li key={i} className="text-xs text-slate-400">
+              <li key={i} className="text-xs text-secondary">
                 <span className="text-red-400 font-mono font-semibold">
                   -{d.points}
                 </span>
-                <span className="text-slate-500 mx-1">·</span>
-                <span className="text-slate-500">[{d.category}]</span>{" "}
-                {d.reason}
+                <span className="text-muted mx-1">·</span>
+                <span className="text-muted">[{d.category}]</span> {d.reason}
               </li>
             ))}
           </ul>
@@ -157,15 +156,15 @@ export default function QualityScoreCard({ qs }: Props) {
 
       {/* Recommendations */}
       {qs.recommendations.length > 0 && (
-        <div className="bg-slate-900/60 rounded-lg p-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="bg-surface rounded-lg p-3">
+          <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
             Recommendations
           </p>
           <ul className="space-y-1">
             {qs.recommendations.map((r, i) => (
               <li
                 key={i}
-                className="flex items-start gap-2 text-xs text-blue-300"
+                className="flex items-start gap-2 text-xs text-accent"
               >
                 <Info size={12} className="mt-0.5 shrink-0" />
                 {r}

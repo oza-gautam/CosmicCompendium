@@ -16,10 +16,10 @@ function Stat({
   good?: boolean;
 }) {
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-slate-800 last:border-0">
-      <span className="text-xs text-slate-400">{label}</span>
+    <div className="flex justify-between items-center py-1.5 border-b border-border last:border-0">
+      <span className="text-xs text-secondary">{label}</span>
       <span
-        className={`text-xs font-mono font-semibold ${good === true ? "text-emerald-400" : good === false ? "text-red-400" : "text-slate-200"}`}
+        className={`text-xs font-mono font-semibold ${good === true ? "text-emerald-400" : good === false ? "text-red-400" : "text-primary"}`}
       >
         {value}
       </span>
@@ -31,10 +31,10 @@ export default function StatisticsPanel({ fit }: Props) {
   const s = fit.statistics;
   return (
     <div className="space-y-4">
-      <div className="bg-slate-900/60 rounded-lg p-3">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+      <div className="bg-surface rounded-lg p-3">
+        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
           Fit Quality
-          <span className="ml-1.5 text-slate-600 normal-case font-normal">
+          <span className="ml-1.5 text-muted normal-case font-normal">
             (log₁₀ space)
           </span>
         </p>
@@ -52,8 +52,8 @@ export default function StatisticsPanel({ fit }: Props) {
         <Stat label="MAE (log₁₀)" value={s.mae.toFixed(4)} />
       </div>
 
-      <div className="bg-slate-900/60 rounded-lg p-3">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+      <div className="bg-surface rounded-lg p-3">
+        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
           Information Criteria
         </p>
         <Stat label="AIC" value={s.aic.toFixed(2)} />
@@ -62,25 +62,25 @@ export default function StatisticsPanel({ fit }: Props) {
         <Stat label="SSE" value={s.sse.toExponential(3)} />
       </div>
 
-      <div className="bg-slate-900/60 rounded-lg p-3">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+      <div className="bg-surface rounded-lg p-3">
+        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
           Parameters
         </p>
         {fit.parameters.map((p) => (
           <div
             key={p.name}
-            className="py-1.5 border-b border-slate-800 last:border-0"
+            className="py-1.5 border-b border-border last:border-0"
           >
             <div className="flex justify-between items-center">
-              <span className="text-xs font-mono text-blue-300">{p.name}</span>
-              <span className="text-xs font-mono font-semibold text-slate-200">
+              <span className="text-xs font-mono text-accent">{p.name}</span>
+              <span className="text-xs font-mono font-semibold text-primary">
                 {p.value.toPrecision(5)}
               </span>
             </div>
             {p.std_error != null && (
               <div className="flex justify-between items-center mt-0.5">
-                <span className="text-xs text-slate-600">± SE</span>
-                <span className="text-xs font-mono text-slate-500">
+                <span className="text-xs text-muted">± SE</span>
+                <span className="text-xs font-mono text-secondary">
                   {p.std_error.toExponential(3)}
                 </span>
               </div>
@@ -89,8 +89,8 @@ export default function StatisticsPanel({ fit }: Props) {
         ))}
       </div>
 
-      <div className="bg-slate-900/60 rounded-lg p-3">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+      <div className="bg-surface rounded-lg p-3">
+        <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">
           Convergence
         </p>
         <Stat

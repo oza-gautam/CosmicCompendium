@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useState, useEffect } from "react";
 import type { Observation, PredictResponse } from "@/types";
 
 const Plot = dynamic(() => import("react-plotly.js"), { ssr: false });
@@ -34,6 +35,33 @@ interface Props {
   xVariable?: string;
 }
 
+function getThemeColors() {
+  const isDark =
+    typeof document !== "undefined" &&
+    document.documentElement.getAttribute("data-theme") === "dark";
+  return isDark
+    ? {
+        paperBg: "transparent",
+        plotBg: "#111827",
+        gridColor: "#1f2937",
+        lineColor: "#374151",
+        tickColor: "#64748b",
+        fontColor: "#94a3b8",
+        legendBg: "rgba(15,17,23,0.8)",
+        legendBorder: "#374151",
+      }
+    : {
+        paperBg: "#f8fafc",
+        plotBg: "#f8fafc",
+        gridColor: "#e2e8f0",
+        lineColor: "#e2e8f0",
+        tickColor: "#94a3b8",
+        fontColor: "#0f172a",
+        legendBg: "rgba(248,250,252,0.9)",
+        legendBorder: "#e2e8f0",
+      };
+}
+
 function getN0(obs: Observation[]): number {
   // N0 = CFU at first time point (t=0); fall back to max if first is zero
   if (obs.length === 0) return 1;
@@ -63,8 +91,28 @@ export default function PlotlyChart({
   logScale = true,
   xVariable = "ICT",
 }: Props) {
+  const [theme, setTheme] = useState<string>(() =>
+    typeof document !== "undefined"
+      ? (document.documentElement.getAttribute("data-theme") ?? "dark")
+      : "dark",
+  );
+
+  useEffect(() => {
+    const obs = new MutationObserver(() => {
+      setTheme(document.documentElement.getAttribute("data-theme") ?? "dark");
+    });
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => obs.disconnect();
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  void theme; // used only to trigger re-render; getThemeColors() reads the DOM directly
   const traces: Plotly.Data[] = [];
   const n0Values: number[] = [];
+  const C = getThemeColors();
 
   if (sampleGroups && sampleGroups.length > 0) {
     sampleGroups.forEach((group, i) => {
@@ -72,7 +120,7 @@ export default function PlotlyChart({
       const n0 = getN0(group.observations);
       n0Values.push(n0);
       const color = SAMPLE_COLORS[i % SAMPLE_COLORS.length];
-      const { x, y, symbols } = obsToXY(group.observations, xVariable);
+      const { x, y } = obsToXY(group.observations, xVariable);
 
       // Split into detected and non-detected so we can style differently
       const xDetected = x.filter((_, j) => group.observations[j].cfu > 0);
@@ -153,12 +201,16 @@ export default function PlotlyChart({
 
   // Prediction curve
   if (prediction && prediction.x.length > 0) {
+    // Anchor the curve to the median N0 across displayed samples.
     const n0 =
       n0Values.length > 0
-        ? Math.exp(
-            n0Values.reduce((s, v) => s + Math.log(Math.max(v, 1)), 0) /
-              n0Values.length,
-          )
+        ? (() => {
+            const sorted = [...n0Values].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0
+              ? (sorted[mid - 1] + sorted[mid]) / 2
+              : sorted[mid];
+          })()
         : 1;
 
     // Clamp predicted curve to detection limit floor — never plot below 1 CFU
@@ -194,52 +246,66 @@ export default function PlotlyChart({
 
   const yaxisType = logScale ? "log" : "linear";
 
-  // Y range: floor at 10^0 = 1 CFU (x-axis crosses here), auto ceiling
-  const yaxisRange = logScale ? [0, undefined] : undefined;
+  // Compute Y ceiling: highest observed CFU rounded up to next decade
+  const allCFU: number[] = [];
+  if (sampleGroups)
+    sampleGroups.forEach((g) =>
+      g.observations.forEach((o) => allCFU.push(o.cfu)),
+    );
+  if (observations) observations.forEach((o) => allCFU.push(o.cfu));
+  const maxCFU = allCFU.length > 0 ? Math.max(...allCFU) : 100000;
+  // Always show at least 6 decades (up to 1,000,000) to match reference charts
+  const yCeilLog = logScale
+    ? Math.max(Math.ceil(Math.log10(Math.max(maxCFU, 10))) + 0.5, 6)
+    : undefined;
 
   const layout: Partial<Plotly.Layout> = {
-    paper_bgcolor: "transparent",
-    plot_bgcolor: "#111827",
-    font: { color: "#94a3b8", size: 12 },
+    paper_bgcolor: C.paperBg,
+    plot_bgcolor: C.plotBg,
+    font: { color: C.fontColor, size: 12 },
     xaxis: {
       title: {
         text:
           xVariable === "ICT" ? "Total ICT (mg·min/L)" : "Total CT (mg·min/L)",
         font: { size: 12 },
       },
-      gridcolor: "#1f2937",
-      linecolor: "#374151",
-      tickfont: { color: "#64748b" },
+      gridcolor: C.gridColor,
+      linecolor: C.lineColor,
+      tickfont: { color: C.tickColor },
       zeroline: true,
-      zerolinecolor: "#374151",
-      rangemode: "tozero",
-      // X axis line sits at y=1 (log10=0) when log scale is on
-      ...(logScale ? { anchor: "y", position: 0 } : {}),
+      zerolinecolor: C.lineColor,
+      range: [0, 60],
+      fixedrange: false,
     },
     yaxis: {
       title: { text: "Viable Microbes (CFU/100mL)", font: { size: 12 } },
       type: yaxisType,
-      range: yaxisRange,
-      gridcolor: "#1f2937",
-      linecolor: "#374151",
-      tickfont: { color: "#64748b" },
+      range: logScale ? [0, yCeilLog] : undefined,
+      gridcolor: C.gridColor,
+      linecolor: C.lineColor,
+      tickfont: { color: C.tickColor },
       zeroline: false,
-      // Force decade ticks: 1, 10, 100, 1000, 10000...
       ...(logScale
         ? {
-            dtick: 1, // 1 unit in log10 space = one decade
-            tick0: 0, // start ticks at 10^0 = 1
-            tickmode: "linear",
-            exponentformat: "power",
-            showexponent: "all",
+            tickmode: "array",
+            tickvals: [1, 10, 100, 1000, 10000, 100000, 1000000],
+            ticktext: [
+              "1",
+              "10",
+              "100",
+              "1,000",
+              "10,000",
+              "100,000",
+              "1,000,000",
+            ],
           }
         : {}),
     },
     legend: {
-      bgcolor: "rgba(15,17,23,0.8)",
-      bordercolor: "#374151",
+      bgcolor: C.legendBg,
+      bordercolor: C.legendBorder,
       borderwidth: 1,
-      font: { color: "#94a3b8", size: 11 },
+      font: { color: C.fontColor, size: 11 },
     },
     margin: { t: 20, r: 20, b: 50, l: 75 },
     hovermode: "closest",

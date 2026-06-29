@@ -6,19 +6,19 @@ class _Base(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
 
-class ProjectCreate(BaseModel):
+class ProjectCreate(_Base):
     name: str
     description: Optional[str] = None
 
 
-class ProjectOut(BaseModel):
+class ProjectOut(_Base):
     id: str
     name: str
     description: Optional[str]
     created_at: str
 
 
-class SampleOut(BaseModel):
+class SampleOut(_Base):
     id: str
     project_id: str
     name: str
@@ -27,7 +27,7 @@ class SampleOut(BaseModel):
     observation_count: int = 0
 
 
-class ObservationOut(BaseModel):
+class ObservationOut(_Base):
     id: int
     sample_id: str
     time: float
@@ -39,18 +39,29 @@ class ObservationOut(BaseModel):
     row_index: Optional[int]
 
 
-class ColumnMapRequest(BaseModel):
+class ColumnMapRequest(_Base):
     column_map: Dict[str, str]
 
 
-class FitRequest(BaseModel):
+class ObservationRow(_Base):
+    time: float
+    concentration: float
+    cfu: float
+
+
+class UpdateRowsRequest(_Base):
+    rows: List[ObservationRow]
+
+
+class FitRequest(_Base):
     model_id: str
     initial_params: Optional[List[float]] = None
     bounds_lower: Optional[List[float]] = None
     bounds_upper: Optional[List[float]] = None
+    sample_ids: Optional[List[str]] = None
 
 
-class PredictRequest(BaseModel):
+class PredictRequest(_Base):
     model_id: str
     params: List[float]
     x_min: Optional[float] = None
@@ -58,13 +69,13 @@ class PredictRequest(BaseModel):
     n_points: int = 200
 
 
-class PredictResponse(BaseModel):
+class PredictResponse(_Base):
     x: List[float]
     y: List[float]
     y_log: List[Optional[float]]
 
 
-class ParameterEstimate(BaseModel):
+class ParameterEstimate(_Base):
     name: str
     value: float
     std_error: Optional[float]
@@ -74,7 +85,7 @@ class ParameterEstimate(BaseModel):
     p_value: Optional[float]
 
 
-class FitStatistics(BaseModel):
+class FitStatistics(_Base):
     sse: float
     mse: float
     rmse: float
@@ -90,13 +101,13 @@ class FitStatistics(BaseModel):
     n_iterations: Optional[int]
 
 
-class QualityDeduction(BaseModel):
+class QualityDeduction(_Base):
     category: str
     reason: str
     points: float
 
 
-class QualityScoreOut(BaseModel):
+class QualityScoreOut(_Base):
     score: float
     rating: str
     data_quality: float
@@ -109,7 +120,7 @@ class QualityScoreOut(BaseModel):
     recommendations: List[str]
 
 
-class DiagnosticsOut(BaseModel):
+class DiagnosticsOut(_Base):
     residuals: List[float]
     standardized_residuals: List[float]
     fitted_values: List[float]
@@ -131,9 +142,10 @@ class FitResultOut(_Base):
     diagnostics: DiagnosticsOut
     quality_score: QualityScoreOut
     created_at: str
+    pooled_sample_ids: Optional[List[str]] = None
 
 
-class ModelInfo(BaseModel):
+class ModelInfo(_Base):
     id: str
     name: str
     description: str
@@ -142,5 +154,5 @@ class ModelInfo(BaseModel):
     x_variable: str
 
 
-class CompareRequest(BaseModel):
+class CompareRequest(_Base):
     fit_ids: List[str]

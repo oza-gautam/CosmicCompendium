@@ -1,23 +1,85 @@
 @import "tailwindcss";
 
+/* ── Semantic color tokens ───────────────────────────────────────────────── */
+:root {
+  /* Light mode — clean white + deep navy typography */
+  --color-bg: 246 248 251;
+  --color-surface: 255 255 255;
+  --color-surface-2: 237 242 248;
+  --color-border: 210 220 232;
+  --color-text-primary: 10 18 40;
+  --color-text-secondary: 55 72 100;
+  --color-text-muted: 120 138 165;
+  --color-accent: 37 99 200;
+  --color-accent-hover: 20 70 160;
+  --color-cyan: 0 188 212;
+  --color-success: 16 185 129;
+  --color-error: 220 53 53;
+}
+
+[data-theme="dark"] {
+  /* Dark mode — logo's deep navy (#0a1628 family) */
+  --color-bg: 6 12 28;
+  --color-surface: 10 20 45;
+  --color-surface-2: 16 30 62;
+  --color-border: 30 50 90;
+  --color-text-primary: 220 230 245;
+  --color-text-secondary: 140 162 195;
+  --color-text-muted: 80 105 145;
+  --color-accent: 66 153 225;
+  --color-accent-hover: 100 185 255;
+  --color-cyan: 0 210 230;
+  --color-success: 52 211 153;
+  --color-error: 248 113 113;
+}
+
+/* ── Legacy vars (kept for body background) ──────────────────────────────── */
 :root {
   --background: #0f1117;
   --foreground: #e2e8f0;
 }
 
+/* ── Tailwind v4 @theme ──────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+
+  /* Semantic token colors */
+  --color-bg: rgb(var(--color-bg) / 1);
+  --color-surface: rgb(var(--color-surface) / 1);
+  --color-surface-2: rgb(var(--color-surface-2) / 1);
+  --color-border: rgb(var(--color-border) / 1);
+  --color-primary: rgb(var(--color-text-primary) / 1);
+  --color-secondary: rgb(var(--color-text-secondary) / 1);
+  --color-muted: rgb(var(--color-text-muted) / 1);
+  --color-accent: rgb(var(--color-accent) / 1);
+  --color-accent-hover: rgb(var(--color-accent-hover) / 1);
+  --color-cyan: rgb(var(--color-cyan) / 1);
+  --color-success: rgb(var(--color-success) / 1);
+  --color-error: rgb(var(--color-error) / 1);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: "Inter", system-ui, sans-serif;
+  background: rgb(var(--color-bg));
+  color: rgb(var(--color-text-primary));
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.font-mono {
+  font-feature-settings: "tnum";
 }
 
 .scrollbar-thin::-webkit-scrollbar { width: 4px; }
 .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+
+/* ── Toast animation ─────────────────────────────────────────────────────── */
+@keyframes slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out;
+}

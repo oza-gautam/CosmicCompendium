@@ -11,6 +11,8 @@ import type {
   ImportTemplate,
   PendingSample,
   ColumnMap,
+  FitEvent,
+  ReportRequest,
 } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -62,6 +64,15 @@ export const api = {
       }),
     data: (sampleId: string) =>
       req<Observation[]>(`/api/samples/${sampleId}/data`),
+    updateRows: (
+      sampleId: string,
+      rows: Array<{ time: number; concentration: number; cfu: number }>,
+    ) =>
+      req(`/api/samples/${sampleId}/rows`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      }),
   },
 
   models: {
@@ -87,6 +98,12 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model_id, params, x_min, x_max }),
       }),
+    fitFixed: (sampleId: string, model_id: string, params: number[]) =>
+      req<FitResult>(`/api/samples/${sampleId}/fit-fixed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model_id, initial_params: params }),
+      }),
     listFits: (sampleId: string) =>
       req<FitResult[]>(`/api/samples/${sampleId}/fits`),
     getFit: (fitId: string) => req<FitResult>(`/api/fits/${fitId}`),
@@ -94,11 +111,12 @@ export const api = {
       projectId: string,
       model_id: string,
       initial_params?: number[],
+      sample_ids?: string[],
     ) =>
       req<FitResult>(`/api/projects/${projectId}/fit-pooled`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model_id, initial_params }),
+        body: JSON.stringify({ model_id, initial_params, sample_ids }),
       }),
     compare: (fit_ids: string[]) =>
       req<object[]>("/api/fits/compare", {
@@ -140,11 +158,59 @@ export const api = {
             data_row_indices: s.dataRowIndices,
             column_map: s.columnMap,
             group_column: s.groupColumn,
+            selected_columns: s.selectedColumns,
+            row_overrides: s.rowOverrides,
           })),
         }),
       }),
     deleteSession: (token: string) =>
       req(`/api/excel/${token}`, { method: "DELETE" }),
+  },
+
+  journal: {
+    list: (sampleId: string): Promise<FitEvent[]> =>
+      req<FitEvent[]>(`/api/samples/${sampleId}/journal`),
+    addEvent: (
+      sampleId: string,
+      event: {
+        event_type: string;
+        title: string;
+        body: string;
+        metadata?: Record<string, unknown>;
+      },
+    ) =>
+      req(`/api/samples/${sampleId}/journal/event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+      }),
+    selectForReport: (sampleId: string, fitId: string) =>
+      req(`/api/samples/${sampleId}/fits/${fitId}/select-for-report`, {
+        method: "POST",
+      }),
+  },
+
+  report: {
+    download: async (
+      sampleId: string,
+      payload: ReportRequest,
+    ): Promise<void> => {
+      const res = await fetch(`${BASE}/api/samples/${sampleId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`Report failed: ${await res.text()}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ??
+        "report.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   },
 
   templates: {

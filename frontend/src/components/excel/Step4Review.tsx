@@ -1,13 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import type {
-  ImportError,
-  ImportedSample,
-  PendingSample,
-  SheetRawResult,
-} from "@/types";
+import { ChevronLeft, Loader2 } from "lucide-react";
+import type { PendingSample, SheetRawResult } from "@/types";
 
 interface Props {
   samples: PendingSample[];
@@ -15,8 +10,6 @@ interface Props {
   onBack: () => void;
   onImport: (samples: PendingSample[]) => Promise<void>;
   importing: boolean;
-  imported: ImportedSample[];
-  errors: ImportError[];
 }
 
 export default function Step4Review({
@@ -25,154 +18,208 @@ export default function Step4Review({
   onBack,
   onImport,
   importing,
-  imported,
-  errors,
 }: Props) {
-  const [names, setNames] = useState<string[]>(
-    samples.map((s) => s.sampleName),
+  const [editedSamples, setEditedSamples] = useState<PendingSample[]>(
+    () => JSON.parse(JSON.stringify(samples)) as PendingSample[],
   );
-  const done = imported.length > 0 || errors.length > 0;
 
-  function getPreviewRows(sample: PendingSample): string[][] {
+  function getMappedColDefs(sample: PendingSample) {
     const raw = sheetRawCache[sample.sheetName];
     if (!raw) return [];
     const headerRow = raw.rows[sample.headerRowIndex] ?? [];
-    const colMap = sample.columnMap;
-    const mappedCols = Object.entries(colMap)
+    return Object.entries(sample.columnMap)
       .filter(([, v]) => v)
-      .map(([field, col]) => ({ field, col, colIdx: headerRow.indexOf(col!) }))
+      .map(([field, colName]) => ({
+        field,
+        colName: colName!,
+        colIdx: headerRow.indexOf(colName!),
+      }))
       .filter(({ colIdx }) => colIdx >= 0);
-
-    const dataRows = sample.dataRowIndices
-      .slice(0, 5)
-      .map((ri) => raw.rows[ri] ?? []);
-    return dataRows.map((row) =>
-      mappedCols.map(({ colIdx }) => row[colIdx] ?? ""),
-    );
   }
 
-  function getMappedHeaders(sample: PendingSample): string[] {
-    const colMap = sample.columnMap;
-    return Object.keys(colMap).filter((k) => colMap[k as keyof typeof colMap]);
+  function getAllDataRows(sample: PendingSample): string[][] {
+    const raw = sheetRawCache[sample.sheetName];
+    if (!raw) return [];
+    return sample.dataRowIndices.map((ri) => raw.rows[ri] ?? []);
+  }
+
+  function updateCell(
+    sampleIdx: number,
+    rowIdx: number,
+    colIdx: number,
+    value: string,
+  ) {
+    setEditedSamples((prev) => {
+      const next = JSON.parse(JSON.stringify(prev)) as PendingSample[];
+      const s = next[sampleIdx] as PendingSample & {
+        __edits?: Record<number, Record<number, string>>;
+      };
+      if (!s.__edits) s.__edits = {};
+      const absRowIdx = s.dataRowIndices[rowIdx];
+      if (!s.__edits[absRowIdx]) s.__edits[absRowIdx] = {};
+      s.__edits[absRowIdx][colIdx] = value;
+      return next;
+    });
+  }
+
+  function updateSampleName(idx: number, name: string) {
+    setEditedSamples((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], sampleName: name };
+      return next;
+    });
+  }
+
+  function getCellValue(
+    sample: PendingSample & {
+      __edits?: Record<number, Record<number, string>>;
+    },
+    absRowIdx: number,
+    colIdx: number,
+    rawValue: string,
+  ): string {
+    return sample.__edits?.[absRowIdx]?.[colIdx] ?? rawValue;
   }
 
   function handleImport() {
-    const updated = samples.map((s, i) => ({ ...s, sampleName: names[i] }));
-    onImport(updated);
-  }
-
-  if (done) {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm font-medium text-slate-300">Import complete</p>
-        {imported.length > 0 && (
-          <div className="space-y-2">
-            {imported.map((r, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 bg-emerald-900/30 border border-emerald-700 rounded-lg px-4 py-2.5"
-              >
-                <CheckCircle size={16} className="text-emerald-400 shrink-0" />
-                <span className="text-emerald-200 text-sm">{r.name}</span>
-                <span className="text-emerald-500 text-xs ml-auto">
-                  {r.obs_count} observations
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {errors.length > 0 && (
-          <div className="space-y-2">
-            {errors.map((e, i) => (
-              <div
-                key={i}
-                className="flex items-start gap-3 bg-red-900/30 border border-red-700 rounded-lg px-4 py-2.5"
-              >
-                <XCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-red-200 text-sm font-medium">
-                    {e.sample_name}
-                  </p>
-                  <p className="text-red-400 text-xs mt-0.5">{e.reason}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+    const withOverrides = editedSamples.map((s) => {
+      const se = s as PendingSample & {
+        __edits?: Record<number, Record<number, string>>;
+      };
+      const result = { ...s };
+      if (se.__edits && Object.keys(se.__edits).length > 0) {
+        result.rowOverrides = se.__edits as Record<
+          number,
+          Record<number, string>
+        >;
+      }
+      return result;
+    });
+    onImport(withOverrides);
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-slate-400">
-        Review the samples below. You can rename them before importing. Showing
-        up to 5 preview rows each.
+    <div className="flex flex-col flex-1 min-h-0 gap-4">
+      <p className="text-sm text-slate-400 shrink-0">
+        Review all data before importing. Click any cell to edit. Rename samples
+        in the header.
       </p>
 
-      <div className="space-y-5 max-h-[420px] overflow-y-auto pr-1">
-        {samples.map((sample, idx) => {
-          const headers = getMappedHeaders(sample);
-          const preview = getPreviewRows(sample);
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1">
+        {editedSamples.map((sample, sIdx) => {
+          const colDefs = getMappedColDefs(sample);
+          const dataRows = getAllDataRows(sample);
+          const rawSample = sample as PendingSample & {
+            __edits?: Record<number, Record<number, string>>;
+          };
+
           return (
             <div
-              key={idx}
-              className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 space-y-3"
+              key={sIdx}
+              className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700 bg-slate-800/60">
                 <input
                   type="text"
-                  value={names[idx]}
-                  onChange={(e) =>
-                    setNames((prev) =>
-                      prev.map((n, i) => (i === idx ? e.target.value : n)),
-                    )
-                  }
+                  value={sample.sampleName}
+                  onChange={(e) => updateSampleName(sIdx, e.target.value)}
                   className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-slate-100 font-medium focus:outline-none focus:border-blue-500"
                 />
                 <span className="text-xs text-slate-500 shrink-0">
-                  {sample.dataRowIndices.length} rows · Sheet:{" "}
-                  {sample.sheetName}
+                  {dataRows.length} rows · Sheet: {sample.sheetName}
                 </span>
               </div>
-              {preview.length > 0 && (
-                <div className="overflow-x-auto rounded-lg border border-slate-700">
-                  <table className="text-xs w-full">
-                    <thead>
-                      <tr className="bg-slate-800">
-                        {headers.map((h) => (
-                          <th
-                            key={h}
-                            className="px-3 py-1.5 text-slate-400 font-medium text-left border-r border-slate-700 last:border-r-0"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.map((row, ri) => (
-                        <tr key={ri} className="border-t border-slate-800">
-                          {row.map((cell, ci) => (
-                            <td
-                              key={ci}
-                              className="px-3 py-1 text-slate-300 border-r border-slate-800 last:border-r-0 max-w-[120px] truncate"
-                            >
-                              {cell}
-                            </td>
-                          ))}
-                        </tr>
+
+              <div className="overflow-x-auto">
+                <table className="text-xs w-full">
+                  <thead>
+                    <tr className="bg-slate-800">
+                      <th className="px-3 py-2 text-slate-500 font-medium text-left border-r border-slate-700 w-8">
+                        #
+                      </th>
+                      {colDefs.map(({ field, colName }) => (
+                        <th
+                          key={field}
+                          className="px-3 py-2 text-slate-400 font-medium text-left border-r border-slate-700 last:border-r-0"
+                        >
+                          <span className="text-slate-300">{colName}</span>
+                          <span className="text-slate-600 ml-1">({field})</span>
+                        </th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dataRows.map((row, rIdx) => {
+                      const absRowIdx = sample.dataRowIndices[rIdx];
+                      return (
+                        <tr
+                          key={rIdx}
+                          className={
+                            rIdx % 2 === 0
+                              ? "bg-transparent"
+                              : "bg-slate-800/20"
+                          }
+                        >
+                          <td className="px-3 py-1 text-slate-600 border-r border-slate-700/50 font-mono">
+                            {rIdx + 1}
+                          </td>
+                          {colDefs.map(({ colIdx, field }) => {
+                            const raw = row[colIdx] ?? "";
+                            const val = getCellValue(
+                              rawSample,
+                              absRowIdx,
+                              colIdx,
+                              raw,
+                            );
+                            const requiredNumeric = [
+                              "time",
+                              "concentration",
+                              "cfu",
+                            ].includes(field);
+                            const isInvalid =
+                              requiredNumeric &&
+                              val !== "" &&
+                              isNaN(Number(val));
+                            return (
+                              <td
+                                key={field}
+                                className="border-r border-slate-700/40 last:border-r-0 p-0"
+                              >
+                                <input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) =>
+                                    updateCell(
+                                      sIdx,
+                                      rIdx,
+                                      colIdx,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className={`w-full px-3 py-1 bg-transparent font-mono focus:outline-none focus:bg-blue-950/30 ${
+                                    isInvalid
+                                      ? "text-red-400 bg-red-950/20"
+                                      : "text-slate-300"
+                                  }`}
+                                  title={
+                                    isInvalid ? "Must be a number" : undefined
+                                  }
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="flex justify-between pt-2">
+      <div className="flex justify-between pt-2 shrink-0">
         <button
           onClick={onBack}
           disabled={importing}
@@ -182,11 +229,12 @@ export default function Step4Review({
         </button>
         <button
           onClick={handleImport}
-          disabled={importing || samples.length === 0}
+          disabled={importing || editedSamples.length === 0}
           className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {importing && <Loader2 size={14} className="animate-spin" />}
-          Import All ({samples.length} sample{samples.length !== 1 ? "s" : ""})
+          Import All ({editedSamples.length} sample
+          {editedSamples.length !== 1 ? "s" : ""})
         </button>
       </div>
     </div>

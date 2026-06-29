@@ -5,7 +5,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import Optional
 from ..db.database import get_connection
-from ..schemas import SampleOut, ObservationOut, ColumnMapRequest
+from ..schemas import SampleOut, ObservationOut, ColumnMapRequest, UpdateRowsRequest
 from ..science.ict_engine import compute_ict
 
 router = APIRouter(prefix="/api/projects/{project_id}/samples", tags=["samples"])
@@ -87,6 +87,17 @@ async def upload_sample(
 
     conn.commit()
     obs_count = conn.execute("SELECT COUNT(*) FROM observations WHERE sample_id = ?", (sample_id,)).fetchone()[0]
+
+    # Write journal event
+    conn.execute(
+        "INSERT INTO fit_events (id, sample_id, event_type, title, body, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+        (str(uuid.uuid4()), sample_id, "sample_created",
+         f"Sample imported: {sample_name}",
+         f"Sample '{sample_name}' imported from CSV with {obs_count} observations.",
+         json.dumps({"obs_count": obs_count, "source": "csv"}))
+    )
+    conn.commit()
+
     sample_row = conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone()
     conn.close()
 
@@ -157,6 +168,27 @@ def update_column_map(sample_id: str, body: ColumnMapRequest):
             )
 
     conn.execute("UPDATE samples SET column_map = ? WHERE id = ?", (json.dumps(cm), sample_id))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
+
+@obs_router.put("/{sample_id}/rows")
+def update_rows(sample_id: str, body: UpdateRowsRequest):
+    conn = get_connection()
+    if not conn.execute("SELECT 1 FROM samples WHERE id = ?", (sample_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, "Sample not found")
+    times = [r.time for r in body.rows]
+    concs = [r.concentration for r in body.rows]
+    cfus = [r.cfu for r in body.rows]
+    icts = compute_ict(times, concs)
+    conn.execute("DELETE FROM observations WHERE sample_id = ?", (sample_id,))
+    for i, (t, c, cfu, ict) in enumerate(zip(times, concs, cfus, icts)):
+        conn.execute(
+            "INSERT INTO observations (sample_id, time, concentration, cfu, ict, row_index) VALUES (?, ?, ?, ?, ?, ?)",
+            (sample_id, t, c, cfu, ict, i),
+        )
     conn.commit()
     conn.close()
     return {"ok": True}

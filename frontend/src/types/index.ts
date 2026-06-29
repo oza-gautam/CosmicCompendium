@@ -110,6 +110,7 @@ export interface FitResult {
   diagnostics: Diagnostics;
   quality_score: QualityScore;
   created_at: string;
+  pooled_sample_ids?: string[] | null;
 }
 
 export interface PredictResponse {
@@ -153,6 +154,8 @@ export interface PendingSample {
   dataRowIndices: number[];
   columnMap: ColumnMap;
   groupColumn?: string;
+  selectedColumns?: number[]; // column indices to keep; undefined = all
+  rowOverrides?: Record<number, Record<number, string>>; // absRowIdx -> colIdx -> newValue
 }
 
 export interface ImportedSample {
@@ -177,4 +180,27 @@ export interface ImportTemplate {
   column_map: ColumnMap;
   group_column?: string;
   created_at: string;
+}
+
+export interface FitEvent {
+  id: string;
+  sample_id: string;
+  event_type: string;
+  title: string;
+  body: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CalculatedNRow {
+  ict: number;
+  values: number[];
+}
+
+export interface ReportRequest {
+  fit_id: string;
+  chart_png_base64?: string;
+  sample_names: string[];
+  sample_ids?: string[];
+  calculated_n: CalculatedNRow[];
 }

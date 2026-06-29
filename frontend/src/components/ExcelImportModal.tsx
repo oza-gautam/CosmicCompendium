@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, FileSpreadsheet } from "lucide-react";
+import { X, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
 import { api } from "@/lib/api";
 import type {
   ColumnMap,
   ExcelSheet,
-  ImportError,
-  ImportedSample,
   ImportTemplate,
   PendingSample,
   SheetRawResult,
@@ -20,14 +19,21 @@ import Step4Review from "./excel/Step4Review";
 interface Props {
   projectId: string;
   onClose: () => void;
-  onImportComplete: () => void;
+  onImportComplete: (count: number) => void;
 }
 
 const STEP_LABELS = [
-  "Upload",
-  "Select Tables",
-  "Map Columns",
-  "Review & Import",
+  { label: "Load Workbook", short: "Load" },
+  { label: "Select Worksheets", short: "Worksheets" },
+  { label: "Map Scientific Variables", short: "Variables" },
+  { label: "Review Benchmark Study", short: "Review" },
+];
+
+const NEXT_LABELS = [
+  "Select Worksheets →",
+  "Map Variables →",
+  "Review Benchmark Study →",
+  "Create Benchmark Study",
 ];
 
 export default function ExcelImportModal({
@@ -56,8 +62,7 @@ export default function ExcelImportModal({
 
   // Step 4 results
   const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState<ImportedSample[]>([]);
-  const [importErrors, setImportErrors] = useState<ImportError[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     api.templates
@@ -118,20 +123,20 @@ export default function ExcelImportModal({
   async function handleImport(samples: PendingSample[]) {
     if (!token) return;
     setImporting(true);
+    setImportError(null);
     try {
       const result = await api.excel.import(token, projectId, samples);
-      setImported(result.imported);
-      setImportErrors(result.errors);
       if (result.imported.length > 0) {
-        onImportComplete();
+        onImportComplete(result.imported.length);
+        onClose();
+      } else {
+        const reasons = result.errors
+          .map((e) => `${e.sample_name}: ${e.reason}`)
+          .join("; ");
+        setImportError(reasons || "No experimental runs were imported.");
       }
     } catch (e: unknown) {
-      setImportErrors([
-        {
-          sample_name: "All samples",
-          reason: e instanceof Error ? e.message : String(e),
-        },
-      ]);
+      setImportError(e instanceof Error ? e.message : String(e));
     } finally {
       setImporting(false);
     }
@@ -143,28 +148,52 @@ export default function ExcelImportModal({
   }
 
   const canProceedStep1 = token !== null && selectedSheets.length > 0;
-  const importDone = imported.length > 0 || importErrors.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-[#0f1117] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <FileSpreadsheet className="text-emerald-400" size={20} />
-            <h2 className="font-semibold text-slate-100">Import from Excel</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3">
+      <div
+        className="bg-bg border border-border rounded-2xl shadow-2xl w-full h-full flex flex-col"
+        style={{ maxWidth: "98vw", maxHeight: "96vh" }}
+      >
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+          <div className="flex items-center gap-4">
+            <Image
+              src="/logo_dark.png"
+              alt="Disinfection ICT Workbench"
+              width={140}
+              height={38}
+              className="hidden dark:block"
+            />
+            <Image
+              src="/logo_light.png"
+              alt="Disinfection ICT Workbench"
+              width={140}
+              height={38}
+              className="block dark:hidden"
+            />
+            <div className="w-px h-8 bg-border" />
+            <div>
+              <h2 className="font-semibold text-primary text-sm">
+                Import Laboratory Dataset
+              </h2>
+              <p className="text-xs text-muted mt-0.5">
+                Prepare experimental observations for ICT modeling ·{" "}
+                {filename ?? "No workbook loaded"}
+              </p>
+            </div>
           </div>
           <button
             onClick={handleClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-muted hover:text-primary transition-colors p-1 rounded-lg hover:bg-surface-2"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center gap-0 px-6 py-3 border-b border-slate-800 shrink-0">
-          {STEP_LABELS.map((label, i) => {
+        {/* ── Step indicator ── */}
+        <div className="flex items-center px-6 py-3 border-b border-border shrink-0 gap-0">
+          {STEP_LABELS.map(({ label }, i) => {
             const n = i + 1;
             const active = step === n;
             const done = step > n;
@@ -172,32 +201,45 @@ export default function ExcelImportModal({
               <div key={n} className="flex items-center">
                 <div className="flex items-center gap-2">
                   <div
-                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-150 ${
                       active
-                        ? "bg-blue-600 text-white"
+                        ? "bg-accent text-white shadow-sm shadow-accent/30"
                         : done
-                          ? "bg-emerald-600 text-white"
-                          : "bg-slate-700 text-slate-500"
+                          ? "bg-success/20 text-success border border-success/30"
+                          : "bg-surface-2 text-muted border border-border"
                     }`}
                   >
-                    {n}
+                    {done ? <CheckCircle2 size={12} /> : n}
                   </div>
                   <span
-                    className={`text-xs font-medium ${active ? "text-slate-200" : done ? "text-emerald-400" : "text-slate-600"}`}
+                    className={`text-xs font-medium transition-colors ${
+                      active
+                        ? "text-primary"
+                        : done
+                          ? "text-success"
+                          : "text-muted"
+                    }`}
                   >
                     {label}
                   </span>
                 </div>
                 {i < STEP_LABELS.length - 1 && (
-                  <div className="w-8 h-px bg-slate-700 mx-3" />
+                  <div
+                    className={`w-8 h-px mx-3 transition-colors ${done ? "bg-success/30" : "bg-border"}`}
+                  />
                 )}
               </div>
             );
           })}
+          <div className="ml-auto text-xs text-muted">
+            Step {step} of {STEP_LABELS.length}
+          </div>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* ── Body ── */}
+        <div
+          className={`flex-1 min-h-0 flex flex-col ${step === 2 || step === 3 ? "px-4 py-3" : "px-6 py-5 overflow-y-auto"}`}
+        >
           {step === 1 && (
             <Step1Upload
               sheets={sheets}
@@ -231,39 +273,38 @@ export default function ExcelImportModal({
             />
           )}
           {step === 4 && (
-            <Step4Review
-              samples={pendingSamples}
-              sheetRawCache={sheetRawCache}
-              onBack={() => setStep(3)}
-              onImport={handleImport}
-              importing={importing}
-              imported={imported}
-              errors={importErrors}
-            />
+            <>
+              {importError && (
+                <div className="mb-3 bg-error/10 border border-error/30 rounded-xl px-4 py-3 text-error text-sm shrink-0">
+                  {importError}
+                </div>
+              )}
+              <Step4Review
+                samples={pendingSamples}
+                sheetRawCache={sheetRawCache}
+                onBack={() => setStep(3)}
+                onImport={handleImport}
+                importing={importing}
+              />
+            </>
           )}
         </div>
 
-        {/* Footer — only for step 1 */}
+        {/* ── Footer (step 1 only) ── */}
         {step === 1 && (
-          <div className="px-6 py-4 border-t border-slate-800 flex justify-end shrink-0">
+          <div className="px-6 py-4 border-t border-border flex items-center justify-between shrink-0">
+            <button
+              onClick={handleClose}
+              className="text-sm text-muted hover:text-primary transition-colors"
+            >
+              Cancel
+            </button>
             <button
               onClick={() => setStep(2)}
               disabled={!canProceedStep1}
-              className="px-5 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-5 py-2 rounded-lg text-sm font-medium bg-accent hover:bg-accent-hover text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              Next →
-            </button>
-          </div>
-        )}
-
-        {/* Footer — import done */}
-        {step === 4 && importDone && (
-          <div className="px-6 py-4 border-t border-slate-800 flex justify-end shrink-0">
-            <button
-              onClick={handleClose}
-              className="px-5 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition-colors"
-            >
-              Close
+              {NEXT_LABELS[0]}
             </button>
           </div>
         )}

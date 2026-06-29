@@ -65,6 +65,30 @@ def create_tables():
             group_column TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS fit_events (
+            id TEXT PRIMARY KEY,
+            sample_id TEXT NOT NULL REFERENCES samples(id) ON DELETE CASCADE,
+            event_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            metadata TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
+
+    # Add columns introduced after initial schema
+    try:
+        conn.execute("ALTER TABLE model_fits ADD COLUMN selected_for_report INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass  # column already exists
+
+    try:
+        conn.execute("ALTER TABLE model_fits ADD COLUMN pooled_sample_ids TEXT")
+        conn.commit()
+    except Exception:
+        pass  # column already exists
+
     conn.close()
