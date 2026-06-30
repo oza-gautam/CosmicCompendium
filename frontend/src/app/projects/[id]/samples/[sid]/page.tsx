@@ -12,6 +12,7 @@ import type {
   ModelInfo,
   FitResult,
   PredictResponse,
+  Experiment,
 } from "@/types";
 import {
   FlaskConical,
@@ -86,6 +87,8 @@ export default function WorkbenchPage({
     new Set(),
   );
   const [showSamplePicker, setShowSamplePicker] = useState(false);
+  const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [showExpPicker, setShowExpPicker] = useState(false);
   const [initMode, setInitMode] = useState<InitMode>("auto");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [logScale, setLogScale] = useState(true);
@@ -109,6 +112,7 @@ export default function WorkbenchPage({
 
   const predictDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const samplePickerRef = useRef<HTMLDivElement>(null);
+  const expPickerRef = useRef<HTMLDivElement>(null);
   const selectedModel = models.find((m) => m.id === selectedModelId);
   const observations = obsMap[sid] ?? [];
 
@@ -138,8 +142,10 @@ export default function WorkbenchPage({
       api.samples.list(id),
       api.models.list(),
       api.fitting.listFits(sid),
+      api.experiments.list(id),
     ])
-      .then(async ([samps, mdls, fits]) => {
+      .then(async ([samps, mdls, fits, exps]) => {
+        setExperiments(exps);
         setAllSamples(samps);
         const foundSample = samps.find((s) => s.id === sid) ?? null;
         setSample(foundSample);
@@ -199,6 +205,36 @@ export default function WorkbenchPage({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showSamplePicker]);
+
+  useEffect(() => {
+    if (!showExpPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (!expPickerRef.current?.contains(e.target as Node)) {
+        setShowExpPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showExpPicker]);
+
+  // Which experiment's samples are currently loaded (if in pooled mode from exp selection)
+  const activeExpId =
+    fitMode === "pooled" && experiments.length > 0
+      ? (() => {
+          const ids = Array.from(pooledSampleIds);
+          const matched = experiments.find((exp) => {
+            const expSamples = allSamples.filter(
+              (s) => s.experiment_id === exp.id,
+            );
+            return (
+              expSamples.length > 0 &&
+              expSamples.every((s) => ids.includes(s.id)) &&
+              ids.every((i) => expSamples.some((s) => s.id === i))
+            );
+          });
+          return matched?.id ?? null;
+        })()
+      : null;
 
   useEffect(() => {
     if (!toast) return;
@@ -592,6 +628,59 @@ export default function WorkbenchPage({
               >
                 <FileText size={13} /> This Sample
               </button>
+              {/* Experiment selector */}
+              {experiments.length > 0 && (
+                <div className="relative" ref={expPickerRef}>
+                  <button
+                    onClick={() => setShowExpPicker((v) => !v)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${activeExpId ? "bg-accent/20 text-accent" : "text-secondary hover:text-primary"}`}
+                  >
+                    <FlaskConical size={13} />
+                    {activeExpId
+                      ? (experiments.find((e) => e.id === activeExpId)?.name ??
+                        "Experiment")
+                      : "Experiment ▾"}
+                    <ChevronDown size={11} />
+                  </button>
+                  {showExpPicker && (
+                    <div className="absolute top-full left-0 mt-1 bg-surface border border-border rounded-xl shadow-xl z-50 min-w-[220px] p-2">
+                      <div className="px-2 py-1 mb-1">
+                        <span className="text-xs text-muted font-medium uppercase tracking-wider">
+                          Load experiment
+                        </span>
+                      </div>
+                      {experiments.map((exp) => {
+                        const expSamples = allSamples.filter(
+                          (s) => s.experiment_id === exp.id,
+                        );
+                        const isActive = activeExpId === exp.id;
+                        return (
+                          <button
+                            key={exp.id}
+                            onClick={() => {
+                              const ids = new Set(expSamples.map((s) => s.id));
+                              setFitMode("pooled");
+                              setPooledSampleIds(ids);
+                              setPrediction(null);
+                              setFitResult(null);
+                              setShowExpPicker(false);
+                            }}
+                            className={`w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${isActive ? "bg-accent/10 text-accent" : "hover:bg-surface-2 text-secondary hover:text-primary"}`}
+                          >
+                            <span className="truncate font-medium">
+                              {exp.name}
+                            </span>
+                            <span className="text-muted shrink-0">
+                              {expSamples.length} samples
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={() => {
                   if (fitMode !== "pooled") {
