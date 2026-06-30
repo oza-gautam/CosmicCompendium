@@ -17,9 +17,12 @@ import {
   FileUp,
   BookOpen,
   Activity,
+  Upload,
+  X,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import FontSizeControl from "@/components/FontSizeControl";
+import QuickImportModal from "@/components/QuickImportModal";
 
 function Logo() {
   return (
@@ -195,6 +198,11 @@ export default function HomePage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const [wizardProject, setWizardProject] = useState<{
+    id: string;
+    file: File;
+  } | null>(null);
 
   useEffect(() => {
     api.projects
@@ -211,9 +219,24 @@ export default function HomePage() {
       setProjects((prev) => [p, ...prev]);
       setNewName("");
       setShowForm(false);
+      if (droppedFile) {
+        setWizardProject({ id: p.id, file: droppedFile });
+        setDroppedFile(null);
+      }
     } finally {
       setCreating(false);
     }
+  }
+
+  function handleFormFileDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.toLowerCase().endsWith(".xlsx")) setDroppedFile(f);
+  }
+
+  function handleFormFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) setDroppedFile(f);
   }
 
   async function deleteProject(id: string) {
@@ -266,7 +289,7 @@ export default function HomePage() {
             <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
               New Benchmark Study
             </h2>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mb-4">
               <input
                 autoFocus
                 value={newName}
@@ -280,16 +303,77 @@ export default function HomePage() {
                 disabled={creating || !newName.trim()}
                 className="bg-accent hover:bg-accent-hover disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                {creating ? "Creating…" : "Create Study"}
+                {creating
+                  ? "Creating…"
+                  : droppedFile
+                    ? "Create & Import"
+                    : "Create Study"}
               </button>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={() => {
+                  setShowForm(false);
+                  setDroppedFile(null);
+                }}
                 className="text-secondary hover:text-primary px-3 py-2 rounded-lg text-sm transition-colors"
               >
                 Cancel
               </button>
             </div>
+
+            {/* Excel drop zone */}
+            <label
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleFormFileDrop}
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg border border-dashed cursor-pointer transition-colors ${
+                droppedFile
+                  ? "border-accent/60 bg-accent/5"
+                  : "border-border hover:border-accent/40 hover:bg-surface-2"
+              }`}
+            >
+              {droppedFile ? (
+                <>
+                  <Upload size={14} className="text-accent shrink-0" />
+                  <span className="text-sm text-accent font-medium flex-1 truncate">
+                    {droppedFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDroppedFile(null);
+                    }}
+                    className="text-muted hover:text-primary transition-colors"
+                  >
+                    <X size={13} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Upload size={14} className="text-muted shrink-0" />
+                  <span className="text-sm text-muted">
+                    Optional: drop an Excel file to launch the Experiment Wizard
+                    after creation
+                  </span>
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    className="hidden"
+                    onChange={handleFormFilePick}
+                  />
+                </>
+              )}
+            </label>
           </div>
+        )}
+
+        {/* Quick Import Wizard launched from study creation */}
+        {wizardProject && (
+          <QuickImportModal
+            projectId={wizardProject.id}
+            initialFile={wizardProject.file}
+            onClose={() => setWizardProject(null)}
+            onImportComplete={() => setWizardProject(null)}
+          />
         )}
 
         {/* ── Main workbench ── */}

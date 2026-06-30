@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X, Upload, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import { api } from "@/lib/api";
@@ -19,6 +19,7 @@ interface Props {
   projectId: string;
   onClose: () => void;
   onImportComplete: (experimentCount: number) => void;
+  initialFile?: File; // pre-loaded from study creation — skip upload step
 }
 
 function formatDatePrefix(dateStr: string): string {
@@ -30,6 +31,7 @@ export default function QuickImportModal({
   projectId,
   onClose,
   onImportComplete,
+  initialFile,
 }: Props) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -43,6 +45,12 @@ export default function QuickImportModal({
   >({});
   const [manualSheets, setManualSheets] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
+
+  // If a file was pre-loaded (from study creation), kick off preview immediately
+  useEffect(() => {
+    if (initialFile) handleFile(initialFile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Shared metadata across all sheets
   const [sharedDate, setSharedDate] = useState("");
