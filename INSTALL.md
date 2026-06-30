@@ -1,4 +1,4 @@
-# Installation Guide — Disinfection Benchmark Modeling Workbench
+﻿# Installation Guide â€” Disinfection Benchmark Modeling Workbench
 
 ## Prerequisites
 
@@ -14,20 +14,18 @@ Install these once on your machine before anything else.
 
 ---
 
-## Step 1 — Get the code
+## Step 1 â€” Get the code
 
-Open a terminal (VS Code: `Ctrl+`` ` or **Terminal → New Terminal**) and run:
+Open a terminal (VS Code: `Ctrl+`` ` or **Terminal â†’ New Terminal**) and run:
 
 ```bash
-git clone <repo-url> disinfection
+git clone https://github.com/oza-gautam/CosmicCompendium.git disinfection
 cd disinfection
 ```
 
-Replace `<repo-url>` with the URL or path you were given.
-
 ---
 
-## Step 2 — Open in VS Code
+## Step 2 â€” Open in VS Code
 
 ```bash
 code .
@@ -37,7 +35,7 @@ When VS Code opens, install the recommended extensions if prompted (Python, ESLi
 
 ---
 
-## Step 3 — Set up the backend (Python)
+## Step 3 â€” Set up the backend (Python)
 
 In the VS Code terminal:
 
@@ -48,7 +46,7 @@ python -m venv .venv
 
 **Activate the virtual environment:**
 
-- Windows: `.venv\Scripts\activate`
+- Windows (Git Bash): `source .venv/Scripts/activate`
 - Mac/Linux: `source .venv/bin/activate`
 
 You should see `(.venv)` at the start of your prompt. Then install dependencies:
@@ -59,7 +57,7 @@ pip install -r requirements.txt
 
 ---
 
-## Step 4 — Set up the frontend (Node.js)
+## Step 4 â€” Set up the frontend (Node.js)
 
 Open a **second terminal** in VS Code (`+` button in the terminal panel), then:
 
@@ -70,31 +68,41 @@ npm install
 
 ---
 
-## Step 5 — Start the app
+## Step 5 â€” Start the app
 
 You need **two terminals running at the same time.**
 
-**Terminal 1 — Backend:**
+**Terminal 1 â€” Backend:**
 
+**Windows (Git Bash):**
 ```bash
-cd backend
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Mac/Linux
-uvicorn main:app --reload --port 8000
+source ./.venv/Scripts/activate
+uvicorn backend.main:app --reload --port 8000 >> logs/backend.log 2>&1
 ```
 
-**Terminal 2 — Frontend:**
+**Mac/Linux:**
+```bash
+source .venv/bin/activate
+uvicorn backend.main:app --reload --port 8000 >> logs/backend.log 2>&1
+```
+
+**Terminal 2 â€” Frontend:**
 
 ```bash
 cd frontend
-npm run dev
+npm run dev >> ../logs/frontend.log 2>&1
 ```
+
+> **Note:** Run all commands from the **project root** (`~/workspace/disinfection`). Logs go to `logs/backend.log` and `logs/frontend.log`. Create the folder first if it doesn't exist:
+> ```bash
+> mkdir -p logs
+> ```
 
 ---
 
-## Step 6 — Open in your browser
+## Step 6 â€” Open in your browser
 
-Go to: **http://localhost:3000**
+Go to: **http://localhost:3025**
 
 The app is ready when you see the workbench home page.
 
@@ -112,6 +120,6 @@ Press `Ctrl+C` in each terminal to stop the backend and frontend servers.
 |---------|-----|
 | `python` not found | Re-install Python with "Add to PATH" checked, then reopen VS Code |
 | `npm` not found | Re-install Node.js, then reopen VS Code |
-| Port 3000 already in use | Run `npm run dev -- --port 3001` and open http://localhost:3001 |
-| Port 8000 already in use | Run `uvicorn main:app --reload --port 8001` and update the frontend API URL in `.env.local` |
+| Port 3000 already in use | Run `npm run dev -- --port 3026` and open http://localhost:3026 |
+| Port 8000 already in use | Run `uvicorn backend.main:app --reload --port 8001` and update the frontend API URL in `.env.local` |
 | `ModuleNotFoundError` | Make sure `(.venv)` is shown in the terminal before running uvicorn |

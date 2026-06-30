@@ -1,6 +1,7 @@
 import json
 import io
 import math
+import os
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -28,10 +29,11 @@ class CalculatedNRow(BaseModel):
 
 class ReportRequest(BaseModel):
     fit_id: str
-    chart_png_base64: Optional[str] = None  # kept for API compat, unused
+    chart_png_base64: Optional[str] = None
     sample_names: List[str] = []
     sample_ids: Optional[List[str]] = None
     calculated_n: List[CalculatedNRow] = []
+    experiment_id: Optional[int] = None
 
 
 SAMPLE_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444",
@@ -271,6 +273,20 @@ def generate_report(sample_id: str, body: ReportRequest):
     for ev in events:
         ev["sample_name"] = sid_to_name.get(ev.get("sample_id", ""), ev.get("sample_id", ""))
         ev["metadata_parsed"] = json.loads(ev["metadata"]) if ev.get("metadata") else {}
+
+    # Fetch experiment info before closing conn
+    experiment_name = None
+    output_path = None
+    if body.experiment_id:
+        exp_row = conn.execute(
+            "SELECT e.name, p.output_path FROM experiments e "
+            "JOIN projects p ON p.id = e.project_id "
+            "WHERE e.id = ?",
+            (body.experiment_id,),
+        ).fetchone()
+        if exp_row:
+            experiment_name = exp_row["name"]
+            output_path = exp_row["output_path"]
 
     conn.close()
 
@@ -542,16 +558,32 @@ def generate_report(sample_id: str, body: ReportRequest):
         ws_j.cell(row=ri, column=5).alignment = Alignment(wrap_text=True)
     auto_width(ws_j)
 
-    # ── Stream response ──────────────────────────────────────────────────────
+    # ── Determine filename ───────────────────────────────────────────────────
+    timestamp = datetime.utcnow().strftime("%m%d%Y-%H%M")
+
+    if experiment_name:
+        safe_stem = experiment_name.replace(" ", "_").replace("/", "-")
+    else:
+        safe_stem = sample["name"].replace(" ", "_").replace("/", "-")
+
+    filename = f"{safe_stem}-{timestamp}.xlsx"
+
+    # ── Build workbook bytes ─────────────────────────────────────────────────
     buf = io.BytesIO()
     wb.save(buf)
-    buf.seek(0)
+    xlsx_bytes = buf.getvalue()
 
-    safe_name = sample["name"].replace(" ", "_").replace("/", "-")
-    filename = f"Report_{safe_name}_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
+    # ── Optionally save to project output_path ───────────────────────────────
+    if output_path:
+        try:
+            dest = os.path.join(output_path, filename)
+            with open(dest, "wb") as fh:
+                fh.write(xlsx_bytes)
+        except Exception:
+            pass  # disk save is best-effort; download always proceeds
 
     return StreamingResponse(
-        buf,
+        io.BytesIO(xlsx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

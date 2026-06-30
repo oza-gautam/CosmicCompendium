@@ -9,12 +9,64 @@ class _Base(BaseModel):
 class ProjectCreate(_Base):
     name: str
     description: Optional[str] = None
+    output_path: Optional[str] = None
+
+
+class ProjectUpdate(_Base):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    output_path: Optional[str] = None
 
 
 class ProjectOut(_Base):
     id: str
     name: str
     description: Optional[str]
+    output_path: Optional[str] = None
+    created_at: str
+
+
+class ExperimentMetadata(_Base):
+    organism: Optional[str] = None
+    disinfectant: Optional[str] = None
+    matrix: Optional[str] = None
+    water_temp: Optional[str] = None
+    analyst: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ExperimentCreate(_Base):
+    project_id: str
+    name: str
+    metadata: Optional[ExperimentMetadata] = None
+
+
+class ExperimentUpdate(_Base):
+    name: Optional[str] = None
+    metadata: Optional[ExperimentMetadata] = None
+
+
+class ExperimentOut(_Base):
+    id: int
+    project_id: str
+    name: str
+    metadata: Optional[ExperimentMetadata] = None
+    created_at: str
+    sample_count: int = 0
+    last_fit_label: Optional[str] = None
+    last_fit_at: Optional[str] = None
+
+
+class ExperimentFitCreate(_Base):
+    label: str
+    parameters: Dict[str, float]
+
+
+class ExperimentFitOut(_Base):
+    id: int
+    experiment_id: int
+    label: str
+    parameters: Dict[str, float]
     created_at: str
 
 
@@ -25,6 +77,7 @@ class SampleOut(_Base):
     column_map: Optional[Dict[str, str]]
     created_at: str
     observation_count: int = 0
+    experiment_id: Optional[int] = None
 
 
 class ObservationOut(_Base):
@@ -143,6 +196,7 @@ class FitResultOut(_Base):
     quality_score: QualityScoreOut
     created_at: str
     pooled_sample_ids: Optional[List[str]] = None
+    label: Optional[str] = None
 
 
 class ModelInfo(_Base):
@@ -156,3 +210,12 @@ class ModelInfo(_Base):
 
 class CompareRequest(_Base):
     fit_ids: List[str]
+
+
+class ReportRequest(_Base):
+    fit_id: str
+    chart_png_base64: Optional[str] = None
+    sample_names: List[str] = []
+    sample_ids: Optional[List[str]] = None
+    calculated_n: List[Any] = []
+    experiment_id: Optional[int] = None

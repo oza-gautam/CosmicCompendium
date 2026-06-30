@@ -83,12 +83,50 @@ def create_tables():
         conn.execute("ALTER TABLE model_fits ADD COLUMN selected_for_report INTEGER DEFAULT 0")
         conn.commit()
     except Exception:
-        pass  # column already exists
+        pass
 
     try:
         conn.execute("ALTER TABLE model_fits ADD COLUMN pooled_sample_ids TEXT")
         conn.commit()
     except Exception:
-        pass  # column already exists
+        pass
+
+    try:
+        conn.execute("ALTER TABLE model_fits ADD COLUMN label TEXT")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE projects ADD COLUMN output_path TEXT")
+        conn.commit()
+    except Exception:
+        pass
+
+    try:
+        conn.execute("ALTER TABLE samples ADD COLUMN experiment_id INTEGER REFERENCES experiments(id) ON DELETE SET NULL")
+        conn.commit()
+    except Exception:
+        pass
+
+    # New tables
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS experiments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            metadata TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS experiment_fits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            experiment_id INTEGER NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+            label TEXT NOT NULL,
+            parameters TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+    """)
+    conn.commit()
 
     conn.close()

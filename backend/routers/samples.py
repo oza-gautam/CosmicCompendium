@@ -5,6 +5,8 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from typing import Optional
 from ..db.database import get_connection
+from pydantic import BaseModel
+from typing import Optional as Opt
 from ..schemas import SampleOut, ObservationOut, ColumnMapRequest, UpdateRowsRequest
 from ..science.ict_engine import compute_ict
 
@@ -192,6 +194,32 @@ def update_rows(sample_id: str, body: UpdateRowsRequest):
     conn.commit()
     conn.close()
     return {"ok": True}
+
+
+class SamplePatch(BaseModel):
+    experiment_id: Opt[int] = None
+
+
+@obs_router.patch("/{sample_id}", response_model=SampleOut)
+def patch_sample(sample_id: str, body: SamplePatch):
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, "Sample not found")
+    conn.execute(
+        "UPDATE samples SET experiment_id = ? WHERE id = ?",
+        (body.experiment_id, sample_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM samples WHERE id = ?", (sample_id,)).fetchone()
+    s = dict(row)
+    s["column_map"] = json.loads(s["column_map"]) if s["column_map"] else {}
+    s["observation_count"] = conn.execute(
+        "SELECT COUNT(*) FROM observations WHERE sample_id = ?", (sample_id,)
+    ).fetchone()[0]
+    conn.close()
+    return s
 
 
 @obs_router.get("/{sample_id}/detect-columns")
