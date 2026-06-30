@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { use } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { api } from "@/lib/api";
@@ -28,6 +29,8 @@ import {
   AlertCircle,
   Loader2,
   Download,
+  Save,
+  X,
 } from "lucide-react";
 import PlotlyChart, {
   type SampleGroup,
@@ -51,6 +54,20 @@ export default function WorkbenchPage({
   params: Promise<{ id: string; sid: string }>;
 }) {
   const { id, sid } = use(params);
+  const searchParams = useSearchParams();
+  const urlExperimentId = searchParams.get("experimentId")
+    ? Number(searchParams.get("experimentId"))
+    : null;
+  // resolved after sample loads — falls back to sample.experiment_id
+  const [experimentId, setExperimentId] = useState<number | null>(
+    urlExperimentId,
+  );
+  const urlPooled = searchParams.get("pooled");
+  const urlInitMode = searchParams.get("initMode") as InitMode | null;
+  const urlBeta = searchParams.get("beta");
+  const urlKd = searchParams.get("kd");
+  const urlKp = searchParams.get("kp");
+  const urlM = searchParams.get("m");
 
   const [sample, setSample] = useState<Sample | null>(null);
   const [allSamples, setAllSamples] = useState<Sample[]>([]);
@@ -78,6 +95,9 @@ export default function WorkbenchPage({
   const [reportFitId, setReportFitId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [showSaveFit, setShowSaveFit] = useState(false);
+  const [saveFitLabel, setSaveFitLabel] = useState("");
+  const [savingFit, setSavingFit] = useState(false);
   // inline data editing — keyed by observation DB id
   type EditMap = Record<
     number,
@@ -120,12 +140,31 @@ export default function WorkbenchPage({
     ])
       .then(async ([samps, mdls, fits]) => {
         setAllSamples(samps);
-        setSample(samps.find((s) => s.id === sid) ?? null);
+        const foundSample = samps.find((s) => s.id === sid) ?? null;
+        setSample(foundSample);
+        if (!urlExperimentId && foundSample?.experiment_id) {
+          setExperimentId(foundSample.experiment_id);
+        }
         setModels(mdls);
         setPastFits(fits);
         if (fits.length > 0) {
           setFitResult(fits[0]);
           setRightTab("statistics");
+        }
+        // Apply URL params from experiment page navigation
+        if (urlPooled) {
+          const ids = urlPooled.split(",").filter(Boolean);
+          setFitMode("pooled");
+          setPooledSampleIds(new Set(ids));
+        }
+        if (urlInitMode) setInitMode(urlInitMode);
+        if (urlInitMode === "fixed" && urlBeta && urlKd && urlKp && urlM) {
+          setParamValues([
+            parseFloat(urlBeta),
+            parseFloat(urlKd),
+            parseFloat(urlKp),
+            parseFloat(urlM),
+          ]);
         }
 
         const entries = await Promise.all(
@@ -268,6 +307,7 @@ export default function WorkbenchPage({
         sample_names: sampleCols.map((s) => s.name),
         sample_ids: activeSamples.map((s) => s.id),
         calculated_n: cnRows,
+        experiment_id: experimentId ?? undefined,
       });
 
       setToast(
@@ -277,6 +317,27 @@ export default function WorkbenchPage({
       setError(String(e));
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function handleSaveFit() {
+    if (!experimentId || !saveFitLabel.trim() || paramValues.length < 4) return;
+    setSavingFit(true);
+    try {
+      const [beta, kd, kp, m] = paramValues;
+      await api.experiments.saveFit(experimentId, saveFitLabel.trim(), {
+        beta,
+        kd,
+        kp,
+        m,
+      });
+      setToast(`Fit saved: "${saveFitLabel.trim()}"`);
+      setSaveFitLabel("");
+      setShowSaveFit(false);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSavingFit(false);
     }
   }
 
@@ -626,6 +687,49 @@ export default function WorkbenchPage({
 
             <ThemeToggle />
 
+            {experimentId && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSaveFit((v) => !v)}
+                  disabled={paramValues.length < 4}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:border-accent/50 text-secondary hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Save size={13} />
+                  Save Fit
+                </button>
+                {showSaveFit && (
+                  <div className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-xl shadow-xl z-50 w-64 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-secondary">
+                        Label this fit
+                      </span>
+                      <button
+                        onClick={() => setShowSaveFit(false)}
+                        className="text-muted hover:text-primary"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <input
+                      autoFocus
+                      value={saveFitLabel}
+                      onChange={(e) => setSaveFitLabel(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSaveFit()}
+                      placeholder="e.g. Run 1 – post calibration"
+                      className="w-full bg-surface-2 border border-border rounded-lg px-3 py-1.5 text-xs text-primary placeholder:text-muted focus:outline-none focus:border-accent mb-2"
+                    />
+                    <button
+                      onClick={handleSaveFit}
+                      disabled={savingFit || !saveFitLabel.trim()}
+                      className="w-full bg-accent hover:bg-accent-hover disabled:opacity-40 text-white rounded-lg py-1.5 text-xs font-medium transition-colors"
+                    >
+                      {savingFit ? "Saving…" : "Save to Experiment"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={handleDownloadReport}
               disabled={!reportFitId || downloading}
@@ -664,10 +768,11 @@ export default function WorkbenchPage({
       {fitMode === "pooled" && (
         <div className="bg-accent/10 border-b border-accent/30 px-5 py-2 text-xs text-accent flex items-center gap-2 shrink-0">
           <Layers size={13} />
-          <strong>Pooled mode</strong> — all {allSamples.length} samples. Each
-          normalized to its own N₀.
+          <strong>Pooled mode</strong> — {activeSamples.length} sample
+          {activeSamples.length !== 1 ? "s" : ""}. Each normalized to its own
+          N₀.
           <span className="flex items-center gap-2 ml-2">
-            {allSamples.map((s, i) => (
+            {activeSamples.map((s, i) => (
               <span key={s.id} className="flex items-center gap-1">
                 <span
                   className="inline-block w-2 h-2 rounded-full"
@@ -879,7 +984,7 @@ export default function WorkbenchPage({
                   Pooled Samples
                 </label>
                 <ul className="space-y-1">
-                  {allSamples.map((s, i) => (
+                  {activeSamples.map((s, i) => (
                     <li
                       key={s.id}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${s.id === sid ? "bg-surface-2/60" : ""}`}
