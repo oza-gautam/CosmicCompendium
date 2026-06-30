@@ -686,9 +686,6 @@ export default function WorkbenchPage({
               Log scale
             </button>
 
-            <FontSizeControl />
-            <ThemeToggle />
-
             {experimentId && (
               <div className="relative">
                 <button
@@ -763,6 +760,10 @@ export default function WorkbenchPage({
                     ? "Fit Pooled"
                     : "Fit Model"}
             </button>
+
+            <span className="text-border mx-1 shrink-0">|</span>
+            <FontSizeControl />
+            <ThemeToggle />
           </div>
         </div>
       </header>
