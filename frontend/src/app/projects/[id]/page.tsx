@@ -86,15 +86,18 @@ function SampleStatusBadge({ sample }: { sample: Sample }) {
 function ExperimentCard({
   experiment,
   projectId,
+  selectable,
+  checked,
+  onToggle,
 }: {
   experiment: Experiment;
   projectId: string;
+  selectable?: boolean;
+  checked?: boolean;
+  onToggle?: () => void;
 }) {
-  return (
-    <Link
-      href={`/projects/${projectId}/experiments/${experiment.id}`}
-      className="group bg-surface border border-border hover:border-accent/50 rounded-xl p-5 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5 transition-all duration-150"
-    >
+  const inner = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-accent/10">
@@ -104,10 +107,18 @@ function ExperimentCard({
             Experiment
           </span>
         </div>
-        <ChevronRight
-          size={14}
-          className="text-muted group-hover:text-accent transition-colors mt-0.5"
-        />
+        {selectable ? (
+          checked ? (
+            <CheckSquare size={14} className="text-accent mt-0.5 shrink-0" />
+          ) : (
+            <Square size={14} className="text-muted mt-0.5 shrink-0" />
+          )
+        ) : (
+          <ChevronRight
+            size={14}
+            className="text-muted group-hover:text-accent transition-colors mt-0.5"
+          />
+        )}
       </div>
 
       <div>
@@ -133,6 +144,30 @@ function ExperimentCard({
           {relDate(experiment.created_at)}
         </span>
       </div>
+    </>
+  );
+
+  if (selectable) {
+    return (
+      <div
+        onClick={onToggle}
+        className={`group cursor-pointer bg-surface border rounded-xl p-5 flex flex-col gap-3 transition-all duration-150 ${
+          checked
+            ? "border-error/50 bg-error/5"
+            : "border-border hover:border-muted/50"
+        }`}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/projects/${projectId}/experiments/${experiment.id}`}
+      className="group bg-surface border border-border hover:border-accent/50 rounded-xl p-5 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5 transition-all duration-150"
+    >
+      {inner}
     </Link>
   );
 }
@@ -330,6 +365,10 @@ export default function ProjectPage({
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showQuickImport, setShowQuickImport] = useState(false);
   const [importBanner, setImportBanner] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedExps, setSelectedExps] = useState<Set<number>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -412,6 +451,34 @@ export default function ProjectPage({
       await refreshAll();
     } finally {
       setMoving(false);
+    }
+  }
+
+  function toggleExp(eid: number) {
+    setSelectedExps((prev) => {
+      const next = new Set(prev);
+      if (next.has(eid)) next.delete(eid);
+      else next.add(eid);
+      return next;
+    });
+  }
+
+  function cancelSelectMode() {
+    setSelectMode(false);
+    setSelectedExps(new Set());
+    setConfirmDelete(false);
+  }
+
+  async function handleDeleteSelected() {
+    setDeleting(true);
+    try {
+      await Promise.all(
+        Array.from(selectedExps).map((eid) => api.experiments.delete(eid)),
+      );
+      cancelSelectMode();
+      await refreshAll();
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -712,14 +779,78 @@ export default function ProjectPage({
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => setShowNewExp(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent hover:bg-accent-hover text-white transition-colors"
-              >
-                <Plus size={12} />
-                New Experiment
-              </button>
+              <div className="flex items-center gap-2">
+                {experiments.length > 0 && !selectMode && (
+                  <button
+                    onClick={() => setSelectMode(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-secondary hover:text-primary hover:border-muted/50 transition-colors"
+                  >
+                    <CheckSquare size={12} />
+                    Select
+                  </button>
+                )}
+                {selectMode && (
+                  <button
+                    onClick={cancelSelectMode}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-secondary hover:text-primary transition-colors"
+                  >
+                    <X size={12} />
+                    Cancel
+                  </button>
+                )}
+                {!selectMode && (
+                  <button
+                    onClick={() => setShowNewExp(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent hover:bg-accent-hover text-white transition-colors"
+                  >
+                    <Plus size={12} />
+                    New Experiment
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Delete action bar */}
+            {selectMode && selectedExps.size > 0 && !confirmDelete && (
+              <div className="flex items-center gap-3 mb-4 bg-error/10 border border-error/30 rounded-xl px-4 py-2.5">
+                <span className="text-xs font-medium text-error shrink-0">
+                  {selectedExps.size} experiment
+                  {selectedExps.size !== 1 ? "s" : ""} selected
+                </span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-3 py-1 bg-error hover:bg-error/80 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  Delete selected
+                </button>
+              </div>
+            )}
+
+            {/* Confirm delete bar */}
+            {confirmDelete && (
+              <div className="flex items-center gap-3 mb-4 bg-error/20 border border-error/50 rounded-xl px-4 py-2.5">
+                <span className="text-xs font-medium text-error shrink-0">
+                  Delete {selectedExps.size} experiment
+                  {selectedExps.size !== 1 ? "s" : ""} and all their samples?
+                  This cannot be undone.
+                </span>
+                <div className="flex-1" />
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={deleting}
+                  className="px-3 py-1 bg-error hover:bg-error/80 disabled:opacity-40 text-white text-xs font-medium rounded-lg transition-colors"
+                >
+                  {deleting ? "Deleting…" : "Confirm delete"}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-xs text-muted hover:text-secondary transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
 
             {experiments.length === 0 && uncategorized.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -771,6 +902,9 @@ export default function ProjectPage({
                         key={exp.id}
                         experiment={exp}
                         projectId={id}
+                        selectable={selectMode}
+                        checked={selectedExps.has(exp.id)}
+                        onToggle={() => toggleExp(exp.id)}
                       />
                     ))}
                   </div>
