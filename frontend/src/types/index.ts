@@ -2,6 +2,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  output_path?: string;
   created_at: string;
 }
 
@@ -12,6 +13,35 @@ export interface Sample {
   column_map?: Record<string, string>;
   created_at: string;
   observation_count: number;
+  experiment_id?: number;
+}
+
+export interface ExperimentMetadata {
+  organism?: string;
+  disinfectant?: string;
+  matrix?: string;
+  water_temp?: string;
+  analyst?: string;
+  notes?: string;
+}
+
+export interface Experiment {
+  id: number;
+  project_id: string;
+  name: string;
+  metadata?: ExperimentMetadata;
+  created_at: string;
+  sample_count: number;
+  last_fit_label?: string;
+  last_fit_at?: string;
+}
+
+export interface ExperimentFit {
+  id: number;
+  experiment_id: number;
+  label: string;
+  parameters: Record<string, number>;
+  created_at: string;
 }
 
 export interface Observation {
@@ -182,6 +212,63 @@ export interface ImportTemplate {
   created_at: string;
 }
 
+// Quick Import Wizard types
+
+export interface QuickImportDetectedColMap {
+  group?: string;
+  time?: string;
+  cfu?: string;
+  concentration?: string;
+}
+
+export interface QuickImportSampleGroup {
+  group_value: string;
+  sample_name: string;
+  row_count: number;
+}
+
+export interface QuickImportSheetPreview {
+  sheet_name: string;
+  experiment_name: string;
+  header_row_index: number;
+  col_map: QuickImportDetectedColMap;
+  sample_groups: QuickImportSampleGroup[];
+  detected: boolean;
+  raw_rows?: string[][];
+  all_headers: string[];
+}
+
+export interface QuickImportPreview {
+  sheets: QuickImportSheetPreview[];
+}
+
+export interface QuickImportConfirmedColMap {
+  group?: string;
+  time: string;
+  cfu: string;
+  concentration: string;
+}
+
+export interface QuickImportSheetConfig {
+  sheet_name: string;
+  experiment_name: string;
+  header_row_index: number;
+  col_map: QuickImportConfirmedColMap;
+  data_row_indices?: number[];
+}
+
+export interface QuickImportExecuteRequest {
+  project_id: string;
+  sheets: QuickImportSheetConfig[];
+}
+
+export interface QuickImportResult {
+  experiment_ids: number[];
+  first_experiment_id: number;
+  total_samples: number;
+  total_observations: number;
+}
+
 export interface FitEvent {
   id: string;
   sample_id: string;
@@ -203,4 +290,5 @@ export interface ReportRequest {
   sample_names: string[];
   sample_ids?: string[];
   calculated_n: CalculatedNRow[];
+  experiment_id?: number;
 }

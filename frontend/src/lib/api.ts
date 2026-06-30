@@ -13,6 +13,12 @@ import type {
   ColumnMap,
   FitEvent,
   ReportRequest,
+  Experiment,
+  ExperimentFit,
+  ExperimentMetadata,
+  QuickImportPreview,
+  QuickImportExecuteRequest,
+  QuickImportResult,
 } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -37,12 +43,59 @@ export const api = {
         body: JSON.stringify({ name, description }),
       }),
     get: (id: string) => req<Project>(`/api/projects/${id}`),
+    update: (
+      id: string,
+      patch: { name?: string; description?: string; output_path?: string },
+    ) =>
+      req<Project>(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
     delete: (id: string) => req(`/api/projects/${id}`, { method: "DELETE" }),
+  },
+
+  experiments: {
+    list: (projectId: string) =>
+      req<Experiment[]>(`/api/experiments?project_id=${projectId}`),
+    create: (projectId: string, name: string, metadata?: ExperimentMetadata) =>
+      req<Experiment>("/api/experiments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId, name, metadata }),
+      }),
+    get: (eid: number) => req<Experiment>(`/api/experiments/${eid}`),
+    update: (
+      eid: number,
+      patch: { name?: string; metadata?: ExperimentMetadata },
+    ) =>
+      req<Experiment>(`/api/experiments/${eid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
+    delete: (eid: number) =>
+      req(`/api/experiments/${eid}`, { method: "DELETE" }),
+    samples: (eid: number) => req<Sample[]>(`/api/experiments/${eid}/samples`),
+    saveFit: (eid: number, label: string, parameters: Record<string, number>) =>
+      req<ExperimentFit>(`/api/experiments/${eid}/fits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label, parameters }),
+      }),
+    listFits: (eid: number) =>
+      req<ExperimentFit[]>(`/api/experiments/${eid}/fits`),
   },
 
   samples: {
     list: (projectId: string) =>
       req<Sample[]>(`/api/projects/${projectId}/samples`),
+    patch: (sampleId: string, patch: { experiment_id?: number | null }) =>
+      req<Sample>(`/api/samples/${sampleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
     upload: (projectId: string, file: File, name?: string) => {
       const fd = new FormData();
       fd.append("file", file);
@@ -210,6 +263,30 @@ export const api = {
         "report.xlsx";
       a.click();
       URL.revokeObjectURL(url);
+    },
+  },
+
+  quickImport: {
+    preview: (projectId: string, file: File): Promise<QuickImportPreview> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return req<QuickImportPreview>(
+        `/api/projects/${projectId}/quick-import/preview`,
+        { method: "POST", body: fd },
+      );
+    },
+    execute: (
+      projectId: string,
+      file: File,
+      config: QuickImportExecuteRequest,
+    ): Promise<QuickImportResult> => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("config", JSON.stringify(config));
+      return req<QuickImportResult>(
+        `/api/projects/${projectId}/quick-import/execute`,
+        { method: "POST", body: fd },
+      );
     },
   },
 
