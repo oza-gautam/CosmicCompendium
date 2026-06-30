@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { api } from "@/lib/api";
-import type { Project, Experiment, Sample } from "@/types";
+import type { Project, Experiment, Sample, Observation } from "@/types";
 import {
   Home,
   ChevronRight,
@@ -14,11 +14,159 @@ import {
   FlaskConical,
   CheckSquare,
   Square,
+  ChevronDown,
+  ChevronUp,
+  Save,
+  Loader2,
 } from "lucide-react";
 import ExperimentMetaPanel from "@/components/ExperimentMetaPanel";
 import SavedFitsPanel from "@/components/SavedFitsPanel";
 import ThemeToggle from "@/components/ThemeToggle";
 import FontSizeControl from "@/components/FontSizeControl";
+
+// ── Inline observation editor for one sample ─────────────────────────────────
+
+type EditRow = { time: string; concentration: string; cfu: string };
+
+function SampleDataRows({
+  sample,
+  projectId,
+}: {
+  sample: Sample;
+  projectId: string;
+}) {
+  const [rows, setRows] = useState<EditRow[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.samples.data(sample.id).then((obs: Observation[]) => {
+      setRows(
+        obs.map((o) => ({
+          time: String(o.time),
+          concentration: String(o.concentration),
+          cfu: String(o.cfu),
+        })),
+      );
+    });
+  }, [sample.id]);
+
+  const update = useCallback(
+    (rowIdx: number, field: keyof EditRow, value: string) => {
+      setRows((prev) =>
+        prev
+          ? prev.map((r, i) => (i === rowIdx ? { ...r, [field]: value } : r))
+          : prev,
+      );
+      setDirty(true);
+      setError(null);
+    },
+    [],
+  );
+
+  async function save() {
+    if (!rows) return;
+    const parsed: Array<{ time: number; concentration: number; cfu: number }> =
+      [];
+    for (let i = 0; i < rows.length; i++) {
+      const t = parseFloat(rows[i].time);
+      const c = parseFloat(rows[i].concentration);
+      const f = parseFloat(rows[i].cfu);
+      if (isNaN(t) || isNaN(c) || isNaN(f)) {
+        setError(`Row ${i + 1} has a non-numeric value.`);
+        return;
+      }
+      parsed.push({ time: t, concentration: c, cfu: f });
+    }
+    setSaving(true);
+    try {
+      await api.samples.updateRows(sample.id, parsed);
+      setDirty(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!rows)
+    return (
+      <div className="flex items-center gap-2 px-4 py-3 text-xs text-muted">
+        <Loader2 size={12} className="animate-spin" /> Loading…
+      </div>
+    );
+
+  return (
+    <div className="border-t border-border bg-surface-2/50">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="text-left px-4 py-2 text-muted font-medium w-8">
+                #
+              </th>
+              <th className="text-left px-4 py-2 text-muted font-medium">
+                Time (min)
+              </th>
+              <th className="text-left px-4 py-2 text-muted font-medium">
+                Conc. (mg/L)
+              </th>
+              <th className="text-left px-4 py-2 text-muted font-medium">
+                CFU/100mL
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className="border-b border-border/50 last:border-0">
+                <td className="px-4 py-1.5 text-muted tabular-nums">{i + 1}</td>
+                {(["time", "concentration", "cfu"] as const).map((field) => (
+                  <td key={field} className="px-2 py-1">
+                    <input
+                      value={r[field]}
+                      onChange={(e) => update(i, field, e.target.value)}
+                      className="w-full bg-surface border border-transparent hover:border-border focus:border-accent rounded px-2 py-0.5 text-primary focus:outline-none tabular-nums transition-colors"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between px-4 py-2 border-t border-border/50">
+        {error ? (
+          <span className="text-xs text-error">{error}</span>
+        ) : (
+          <span className="text-xs text-muted">
+            {rows.length} row{rows.length !== 1 ? "s" : ""}
+          </span>
+        )}
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/projects/${projectId}/samples/${sample.id}`}
+            className="text-xs text-muted hover:text-accent transition-colors"
+          >
+            Open in fit page →
+          </Link>
+          <button
+            onClick={save}
+            disabled={!dirty || saving}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
+          >
+            {saving ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : (
+              <Save size={11} />
+            )}
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ExperimentPage({
   params,
@@ -33,6 +181,7 @@ export default function ExperimentPage({
   const [experiment, setExperiment] = useState<Experiment | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -225,41 +374,56 @@ export default function ExperimentPage({
               <div className="flex flex-col gap-2">
                 {samples.map((s) => {
                   const checked = selected.has(s.id);
+                  const isExpanded = expanded === s.id;
                   return (
-                    <button
+                    <div
                       key={s.id}
-                      onClick={() => toggleSample(s.id)}
-                      className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                      className={`rounded-xl border overflow-hidden transition-all ${
                         checked
                           ? "bg-accent/5 border-accent/30"
-                          : "bg-surface border-border hover:border-border/80"
+                          : "bg-surface border-border"
                       }`}
                     >
-                      {checked ? (
-                        <CheckSquare
-                          size={16}
-                          className="text-accent shrink-0"
-                        />
-                      ) : (
-                        <Square size={16} className="text-muted shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-primary truncate">
-                          {s.name}
-                        </p>
-                        <p className="text-xs text-muted mt-0.5">
-                          {s.observation_count} observation
-                          {s.observation_count !== 1 ? "s" : ""}
-                        </p>
+                      {/* Header row */}
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <button
+                          onClick={() => toggleSample(s.id)}
+                          className="shrink-0"
+                        >
+                          {checked ? (
+                            <CheckSquare size={16} className="text-accent" />
+                          ) : (
+                            <Square size={16} className="text-muted" />
+                          )}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-primary truncate">
+                            {s.name}
+                          </p>
+                          <p className="text-xs text-muted mt-0.5">
+                            {s.observation_count} observation
+                            {s.observation_count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setExpanded(isExpanded ? null : s.id)}
+                          className="text-xs text-muted hover:text-primary transition-colors flex items-center gap-1 px-2 py-1 rounded hover:bg-surface-2"
+                          title={isExpanded ? "Collapse" : "Edit data"}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp size={13} />
+                          ) : (
+                            <ChevronDown size={13} />
+                          )}
+                          <span>{isExpanded ? "Collapse" : "Edit data"}</span>
+                        </button>
                       </div>
-                      <Link
-                        href={`/projects/${id}/samples/${s.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs text-muted hover:text-accent transition-colors shrink-0 px-2 py-1 rounded hover:bg-surface-2"
-                      >
-                        Open →
-                      </Link>
-                    </button>
+
+                      {/* Expandable data table */}
+                      {isExpanded && (
+                        <SampleDataRows sample={s} projectId={id} />
+                      )}
+                    </div>
                   );
                 })}
               </div>
