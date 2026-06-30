@@ -42,6 +42,7 @@ import QualityScoreCard from "@/components/QualityScoreCard";
 import DiagnosticsPanel from "@/components/DiagnosticsPanel";
 import JournalTab from "@/components/JournalTab";
 import ThemeToggle from "@/components/ThemeToggle";
+import FontSizeControl from "@/components/FontSizeControl";
 
 type RightTab = "statistics" | "quality" | "diagnostics";
 type CenterTab = "plot" | "data" | "observed" | "calculated" | "journal";
@@ -685,6 +686,7 @@ export default function WorkbenchPage({
               Log scale
             </button>
 
+            <FontSizeControl />
             <ThemeToggle />
 
             {experimentId && (

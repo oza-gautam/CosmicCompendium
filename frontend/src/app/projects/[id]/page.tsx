@@ -32,6 +32,7 @@ import {
 import ExcelImportModal from "@/components/ExcelImportModal";
 import QuickImportModal from "@/components/QuickImportModal";
 import ThemeToggle from "@/components/ThemeToggle";
+import FontSizeControl from "@/components/FontSizeControl";
 
 function Logo() {
   return (
@@ -462,6 +463,7 @@ export default function ProjectPage({
             <span className="text-primary font-medium">{project.name}</span>
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            <FontSizeControl />
             <ThemeToggle />
           </div>
         </div>

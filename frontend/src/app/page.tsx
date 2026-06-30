@@ -19,6 +19,7 @@ import {
   Activity,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import FontSizeControl from "@/components/FontSizeControl";
 
 function Logo() {
   return (
@@ -233,6 +234,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center gap-4">
           <Logo />
           <div className="ml-auto flex items-center gap-3">
+            <FontSizeControl />
             <ThemeToggle />
           </div>
         </div>
