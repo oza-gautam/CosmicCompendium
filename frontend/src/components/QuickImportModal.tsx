@@ -8,6 +8,7 @@ import type {
   QuickImportPreview,
   QuickImportSheetPreview,
   QuickImportSheetConfig,
+  QuickImportSheetMetadata,
 } from "@/types";
 import ConfirmScreen from "./quick-import/ConfirmScreen";
 import ManualGridScreen from "./quick-import/ManualGridScreen";
@@ -18,6 +19,11 @@ interface Props {
   projectId: string;
   onClose: () => void;
   onImportComplete: (experimentCount: number) => void;
+}
+
+function formatDatePrefix(dateStr: string): string {
+  // Convert YYYY-MM-DD to YYYYMMDD
+  return dateStr.replace(/-/g, "");
 }
 
 export default function QuickImportModal({
@@ -32,13 +38,40 @@ export default function QuickImportModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-  // sheet index -> confirmed config (undefined = not yet confirmed)
   const [sheetConfigs, setSheetConfigs] = useState<
     Record<number, QuickImportSheetConfig>
   >({});
-  // sheet index -> "manual" mode (needs grid picker)
   const [manualSheets, setManualSheets] = useState<Set<number>>(new Set());
   const [importing, setImporting] = useState(false);
+
+  // Shared metadata across all sheets
+  const [sharedDate, setSharedDate] = useState("");
+  const [sharedAnalyst, setSharedAnalyst] = useState("");
+
+  function buildExperimentName(sheetName: string, date: string): string {
+    if (!date) return sheetName;
+    return `${formatDatePrefix(date)}-${sheetName}`;
+  }
+
+  function applySharedMeta(
+    configs: Record<number, QuickImportSheetConfig>,
+    date: string,
+    analyst: string,
+  ): Record<number, QuickImportSheetConfig> {
+    const updated: Record<number, QuickImportSheetConfig> = {};
+    for (const [k, cfg] of Object.entries(configs)) {
+      const baseName = cfg.sheet_name;
+      updated[Number(k)] = {
+        ...cfg,
+        experiment_name: buildExperimentName(baseName, date),
+        metadata: {
+          experiment_date: date || undefined,
+          analyst: analyst || undefined,
+        },
+      };
+    }
+    return updated;
+  }
 
   async function handleFile(f: File) {
     setFile(f);
@@ -50,13 +83,12 @@ export default function QuickImportModal({
     try {
       const result = await api.quickImport.preview(projectId, f);
       setPreview(result);
-      // Auto-confirm sheets where detection succeeded
       const configs: Record<number, QuickImportSheetConfig> = {};
       result.sheets.forEach((sheet, i) => {
         if (sheet.detected) {
           configs[i] = {
             sheet_name: sheet.sheet_name,
-            experiment_name: sheet.experiment_name,
+            experiment_name: buildExperimentName(sheet.sheet_name, sharedDate),
             header_row_index: sheet.header_row_index,
             col_map: {
               group: sheet.col_map.group,
@@ -64,11 +96,14 @@ export default function QuickImportModal({
               cfu: sheet.col_map.cfu!,
               concentration: sheet.col_map.concentration!,
             },
+            metadata: {
+              experiment_date: sharedDate || undefined,
+              analyst: sharedAnalyst || undefined,
+            },
           };
         }
       });
       setSheetConfigs(configs);
-      // Mark failed-detection sheets as needing manual grid
       const manual = new Set<number>();
       result.sheets.forEach((sheet, i) => {
         if (!sheet.detected) manual.add(i);
@@ -82,6 +117,17 @@ export default function QuickImportModal({
     }
   }
 
+  function handleDateChange(date: string) {
+    setSharedDate(date);
+    // Rewrite experiment names in all confirmed configs
+    setSheetConfigs((prev) => applySharedMeta(prev, date, sharedAnalyst));
+  }
+
+  function handleAnalystChange(analyst: string) {
+    setSharedAnalyst(analyst);
+    setSheetConfigs((prev) => applySharedMeta(prev, sharedDate, analyst));
+  }
+
   function tabStatus(i: number, sheet: QuickImportSheetPreview): TabStatus {
     if (sheetConfigs[i]) return "confirmed";
     if (manualSheets.has(i)) return "manual";
@@ -89,7 +135,17 @@ export default function QuickImportModal({
   }
 
   function handleConfirmChange(i: number, cfg: QuickImportSheetConfig) {
-    setSheetConfigs((prev) => ({ ...prev, [i]: cfg }));
+    // Preserve shared metadata when user edits col map / name in ConfirmScreen
+    setSheetConfigs((prev) => ({
+      ...prev,
+      [i]: {
+        ...cfg,
+        metadata: {
+          experiment_date: sharedDate || undefined,
+          analyst: sharedAnalyst || undefined,
+        },
+      },
+    }));
   }
 
   function handleManualDone(i: number, cfg: QuickImportSheetConfig) {
@@ -98,7 +154,17 @@ export default function QuickImportModal({
       next.delete(i);
       return next;
     });
-    setSheetConfigs((prev) => ({ ...prev, [i]: cfg }));
+    setSheetConfigs((prev) => ({
+      ...prev,
+      [i]: {
+        ...cfg,
+        experiment_name: buildExperimentName(cfg.sheet_name, sharedDate),
+        metadata: {
+          experiment_date: sharedDate || undefined,
+          analyst: sharedAnalyst || undefined,
+        },
+      },
+    }));
   }
 
   const allConfirmed =
@@ -187,11 +253,44 @@ export default function QuickImportModal({
             </div>
           )}
 
-          {/* Step 2: Tabbed confirm / manual */}
+          {/* Step 2: Shared metadata + tabbed confirm */}
           {preview && (
             <div className="flex flex-col gap-4">
+              {/* Shared metadata row */}
+              <div className="flex gap-3 p-3 bg-surface-2 rounded-xl border border-border">
+                <div className="flex-1">
+                  <label className="text-xs text-muted block mb-1">
+                    Experiment date
+                    <span className="text-muted ml-1 font-normal">
+                      (optional — prefixes all experiment names)
+                    </span>
+                  </label>
+                  <input
+                    type="date"
+                    value={sharedDate}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-primary focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-muted block mb-1">
+                    Analyst
+                    <span className="text-muted ml-1 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={sharedAnalyst}
+                    onChange={(e) => handleAnalystChange(e.target.value)}
+                    placeholder="e.g. J. Smith"
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-primary placeholder:text-muted focus:outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+
               {/* Tabs */}
-              <div className="flex gap-1 border-b border-border pb-0 overflow-x-auto">
+              <div className="flex gap-1 border-b border-border overflow-x-auto">
                 {preview.sheets.map((sheet, i) => {
                   const status = tabStatus(i, sheet);
                   return (

@@ -249,12 +249,19 @@ export interface QuickImportConfirmedColMap {
   concentration: string;
 }
 
+export interface QuickImportSheetMetadata {
+  experiment_date?: string; // YYYY-MM-DD
+  analyst?: string;
+  notes?: string;
+}
+
 export interface QuickImportSheetConfig {
   sheet_name: string;
   experiment_name: string;
   header_row_index: number;
   col_map: QuickImportConfirmedColMap;
   data_row_indices?: number[];
+  metadata?: QuickImportSheetMetadata;
 }
 
 export interface QuickImportExecuteRequest {

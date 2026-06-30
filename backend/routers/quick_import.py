@@ -87,12 +87,19 @@ class ConfirmedColMap(BaseModel):
     concentration: str
 
 
+class SheetMetadata(BaseModel):
+    experiment_date: Optional[str] = None  # YYYY-MM-DD
+    analyst: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class SheetImportConfig(BaseModel):
     sheet_name: str
     experiment_name: str
     header_row_index: int
     col_map: ConfirmedColMap
     data_row_indices: Optional[list[int]] = None  # None = auto (all non-header rows)
+    metadata: Optional[SheetMetadata] = None
 
 
 class QuickImportExecuteRequest(BaseModel):
@@ -309,9 +316,17 @@ async def quick_import_execute(
             headers = all_rows[sheet_cfg.header_row_index] if all_rows else []
 
             # Create experiment
+            exp_meta = {}
+            if sheet_cfg.metadata:
+                if sheet_cfg.metadata.experiment_date:
+                    exp_meta["experiment_date"] = sheet_cfg.metadata.experiment_date
+                if sheet_cfg.metadata.analyst:
+                    exp_meta["analyst"] = sheet_cfg.metadata.analyst
+                if sheet_cfg.metadata.notes:
+                    exp_meta["notes"] = sheet_cfg.metadata.notes
             exp_row = conn.execute(
                 "INSERT INTO experiments (project_id, name, metadata) VALUES (?, ?, ?) RETURNING id",
-                (project_id, sheet_cfg.experiment_name, json.dumps({})),
+                (project_id, sheet_cfg.experiment_name, json.dumps(exp_meta)),
             ).fetchone()
             exp_id = exp_row[0]
             experiment_ids.append(exp_id)
